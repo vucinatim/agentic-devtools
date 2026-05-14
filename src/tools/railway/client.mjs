@@ -250,10 +250,9 @@ export const createRailwayClient = ({
           projectMembers(projectId: $projectId) {
             id
             role
-            user {
-              name
-              email
-            }
+            name
+            email
+            avatar
           }
         }
       `,
@@ -656,18 +655,20 @@ export const createRailwayClient = ({
   };
 
   const disconnectService = async (serviceId) => {
-    const disconnected = await request(
+    const data = await request(
       `
         mutation RailwayServiceDisconnect($id: String!) {
-          serviceDisconnect(id: $id)
+          serviceDisconnect(id: $id) {
+            id
+            name
+            icon
+            projectId
+          }
         }
       `,
       { id: serviceId },
     );
-    return {
-      disconnected: Boolean(disconnected.serviceDisconnect),
-      serviceId,
-    };
+    return data.serviceDisconnect;
   };
 
   const deleteService = async ({ serviceId, environmentId } = {}) => {
@@ -737,19 +738,18 @@ export const createRailwayClient = ({
             environmentId: $environmentId
             commitSha: $commitSha
             latestCommit: $latestCommit
-          ) {
-            id
-            status
-            environmentId
-            serviceId
-            url
-            staticUrl
-          }
+          )
         }
       `,
       { serviceId, environmentId, commitSha, latestCommit },
     );
-    return deployment.serviceInstanceDeploy;
+    return {
+      triggered: Boolean(deployment.serviceInstanceDeploy),
+      serviceId,
+      environmentId,
+      commitSha: commitSha ?? null,
+      latestCommit: latestCommit ?? null,
+    };
   };
 
   const redeployService = async ({ serviceId, environmentId } = {}) => {
@@ -762,19 +762,16 @@ export const createRailwayClient = ({
           serviceInstanceRedeploy(
             serviceId: $serviceId
             environmentId: $environmentId
-          ) {
-            id
-            status
-            environmentId
-            serviceId
-            url
-            staticUrl
-          }
+          )
         }
       `,
       { serviceId, environmentId },
     );
-    return deployment.serviceInstanceRedeploy;
+    return {
+      triggered: Boolean(deployment.serviceInstanceRedeploy),
+      serviceId,
+      environmentId,
+    };
   };
 
   const updateServiceInstanceLimits = async ({

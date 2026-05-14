@@ -325,25 +325,16 @@ test("manages Railway services, deployments, and limits", async () => {
             icon: "postgresql",
             projectId: "project-id",
           },
-          serviceDisconnect: true,
+          serviceDisconnect: {
+            id: "service-id",
+            name: "api-renamed",
+            icon: "postgresql",
+            projectId: "project-id",
+          },
           serviceDelete: true,
           serviceInstanceUpdate: true,
-          serviceInstanceDeploy: {
-            id: "deployment-id",
-            status: "BUILDING",
-            environmentId: "env-id",
-            serviceId: "service-id",
-            url: null,
-            staticUrl: null,
-          },
-          serviceInstanceRedeploy: {
-            id: "deployment-id-2",
-            status: "QUEUED",
-            environmentId: "env-id",
-            serviceId: "service-id",
-            url: null,
-            staticUrl: null,
-          },
+          serviceInstanceDeploy: true,
+          serviceInstanceRedeploy: true,
           serviceInstanceLimitsUpdate: true,
         },
       });
@@ -369,8 +360,10 @@ test("manages Railway services, deployments, and limits", async () => {
     image: undefined,
   });
   assert.deepEqual(await client.disconnectService("service-id"), {
-    disconnected: true,
-    serviceId: "service-id",
+    id: "service-id",
+    name: "api-renamed",
+    icon: "postgresql",
+    projectId: "project-id",
   });
   assert.deepEqual(
     await client.deleteService({ serviceId: "service-id", environmentId: "env-id" }),
@@ -394,20 +387,30 @@ test("manages Railway services, deployments, and limits", async () => {
       environmentId: "env-id",
     },
   );
-  assert.equal(
-    (await client.deployService({
+  assert.deepEqual(
+    await client.deployService({
       serviceId: "service-id",
       environmentId: "env-id",
       latestCommit: true,
-    })).id,
-    "deployment-id",
-  );
-  assert.equal(
-    (await client.redeployService({
+    }),
+    {
+      triggered: true,
       serviceId: "service-id",
       environmentId: "env-id",
-    })).id,
-    "deployment-id-2",
+      commitSha: null,
+      latestCommit: true,
+    },
+  );
+  assert.deepEqual(
+    await client.redeployService({
+      serviceId: "service-id",
+      environmentId: "env-id",
+    }),
+    {
+      triggered: true,
+      serviceId: "service-id",
+      environmentId: "env-id",
+    },
   );
   assert.deepEqual(
     await client.updateServiceInstanceLimits({
@@ -473,7 +476,9 @@ test("manages Railway environments, variables, domains, volumes, and deployment 
             {
               id: "member-id",
               role: "ADMIN",
-              user: { name: "Tim", email: "tim@example.com" },
+              name: "Tim",
+              email: "tim@example.com",
+              avatar: null,
             },
           ],
           service: {
@@ -574,7 +579,13 @@ test("manages Railway environments, variables, domains, volumes, and deployment 
     },
   });
 
-  assert.equal((await client.getProjectMembers("project-id"))[0].role, "ADMIN");
+  assert.deepEqual((await client.getProjectMembers("project-id"))[0], {
+    id: "member-id",
+    role: "ADMIN",
+    name: "Tim",
+    email: "tim@example.com",
+    avatar: null,
+  });
   assert.equal((await client.getService("service-id")).projectName, "Magnify");
   assert.equal(
     (await client.getServiceInstance({
