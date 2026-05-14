@@ -23,6 +23,12 @@ npx -y @vucinatim/agentic-devtools connect namecheap
 npx -y @vucinatim/agentic-devtools connect npm
 ```
 
+npm publishing setup can also be driven through the package:
+
+```bash
+npx -y @vucinatim/agentic-devtools setup-publishing npm
+```
+
 Start here:
 
 - [docs/architecture.md](docs/architecture.md)
@@ -118,7 +124,9 @@ npm:
 ```
 
 Use `connect npm` for guided token setup. For real package releases, prefer
-GitHub Actions Trusted Publishing over local write tokens.
+GitHub Actions Trusted Publishing over local write tokens. Use
+`setup-publishing npm` to run npm's official Trusted Publishing setup command
+through the package.
 
 ### Global CLI
 

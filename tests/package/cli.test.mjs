@@ -24,6 +24,7 @@ test("CLI prints usage", () => {
     result.stdout,
     /agentic-devtools connect <namecheap\|railway\|npm>/,
   );
+  assert.match(result.stdout, /agentic-devtools setup-publishing npm/);
 });
 
 test("README-facing npx command shape maps to the CLI contract", () => {

@@ -155,7 +155,24 @@ After npm Trusted Publishing is configured for this exact repo and workflow,
 
 ## npm Trusted Publisher Setup
 
-In npm package settings, configure a trusted publisher for:
+Use the package-owned setup flow:
+
+```bash
+npx -y @vucinatim/agentic-devtools setup-publishing npm
+```
+
+The flow runs npm's official trust command, using the saved npm token from
+`connect npm` when one is available:
+
+```bash
+npx -y npm@^11.10.0 login --auth-type=web --registry https://registry.npmjs.org
+npx -y npm@^11.10.0 trust github @vucinatim/agentic-devtools --repo vucinatim/agentic-devtools --file publish.yml --yes
+```
+
+This keeps the setup aligned with npm's beta Trusted Publishing flow and lets
+npm handle web/security-key two-factor authentication when required.
+
+For this repository it configures:
 
 - provider: GitHub Actions
 - organization/user: `vucinatim`

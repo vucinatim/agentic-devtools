@@ -13,6 +13,7 @@ in MCP host config:
 npx -y @vucinatim/agentic-devtools connect railway
 npx -y @vucinatim/agentic-devtools connect namecheap
 npx -y @vucinatim/agentic-devtools connect npm
+npx -y @vucinatim/agentic-devtools setup-publishing npm
 ```
 
 ## Primary: MCP Host With `npx`
@@ -73,7 +74,9 @@ npm:
 ```
 
 Use `connect npm` for guided token setup when package inspection or token
-operations require authentication.
+operations require authentication. Use `setup-publishing npm` when the package
+needs to attach GitHub Actions Trusted Publishing through npm's official trust
+setup flow.
 
 ## Secondary: Global CLI
 
@@ -125,6 +128,7 @@ Namecheap supports:
 npm supports:
 
 - guided local setup through `agentic-devtools connect npm`
+- guided GitHub Actions Trusted Publishing setup through `agentic-devtools setup-publishing npm`
 - `NPM_TOKEN`
 - `NODE_AUTH_TOKEN`
 - `.npmrc` auth token resolution

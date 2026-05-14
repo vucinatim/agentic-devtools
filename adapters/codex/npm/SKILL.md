@@ -23,6 +23,7 @@ publish dry-run.
 
 - `getNpmAuthStatus`
 - `connectNpm`
+- `setupNpmGitHubTrustedPublisher`
 - `disconnectNpm`
 - `testNpmConnection`
 - `getNpmPackageInfo`

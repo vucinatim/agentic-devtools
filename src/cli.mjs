@@ -7,6 +7,7 @@ const usage = () => `Usage:
   agentic-devtools tools
   agentic-devtools mcp <namecheap|railway|npm>
   agentic-devtools connect <namecheap|railway|npm>
+  agentic-devtools setup-publishing npm
   agentic-devtools disconnect <namecheap|railway|npm>
   agentic-devtools auth-status <namecheap|railway|npm>
   agentic-devtools test-connection <namecheap|railway|npm>
@@ -88,6 +89,33 @@ if (args[0] === "connect") {
     process.exit(0);
   }
   throw new Error("connect expects one of: namecheap, railway, npm");
+}
+
+if (args[0] === "setup-publishing") {
+  const toolName = args[1];
+  if (toolName === "npm") {
+    const { runNpmTrustGithubSetup } = await import(
+      "./tools/npm/trust-cli.mjs"
+    );
+    process.stderr.write(
+      "Running npm's official GitHub Trusted Publishing setup flow...\n",
+    );
+    const result = await runNpmTrustGithubSetup({
+      stdio: "inherit",
+      loginFirst: true,
+    });
+    if (!result.ok) {
+      process.exit(result.status || 1);
+    }
+    printJson({
+      ok: true,
+      command: result.command,
+      args: result.args,
+      tokenSource: result.tokenSource,
+    });
+    process.exit(0);
+  }
+  throw new Error("setup-publishing expects: npm");
 }
 
 if (args[0] === "disconnect") {

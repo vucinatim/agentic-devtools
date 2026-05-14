@@ -44,4 +44,9 @@ export {
   encodePackageName,
   NpmRegistryError,
 } from "./tools/npm/client.mjs";
+export {
+  buildNpmWebLoginArgs,
+  buildNpmTrustGithubArgs,
+  runNpmTrustGithubSetup,
+} from "./tools/npm/trust-cli.mjs";
 export { getTool, listTools, tools } from "./core/tool-registry.mjs";

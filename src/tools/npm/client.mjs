@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { DEFAULT_NPM_REGISTRY, getNpmAuthStatus, resolveNpmAuthConfig } from "./auth.mjs";
 
@@ -223,25 +224,40 @@ export const createNpmClient = ({
       args.push("--dry-run");
     }
 
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "agentic-npm-"));
+    const userconfigPath = path.join(tempDir, ".npmrc");
+    if (auth.token) {
+      const registryUrl = new URL(registry);
+      await writeFile(
+        userconfigPath,
+        `registry=${registry}/\n//${registryUrl.host}/:_authToken=${auth.token}\n`,
+      );
+      await chmod(userconfigPath, 0o600).catch(() => {});
+    }
+
     const envForPublish = {
       ...process.env,
       ...env,
       NPM_CONFIG_REGISTRY: registry,
-      ...(auth.token ? { NODE_AUTH_TOKEN: auth.token } : {}),
+      ...(auth.token ? { NPM_CONFIG_USERCONFIG: userconfigPath } : {}),
     };
 
-    const result = await execNpm(args, { cwd, env: envForPublish });
-    return {
-      ok: result.status === 0,
-      dryRun,
-      packageName: packageJson.name,
-      version: packageJson.version,
-      tag,
-      access,
-      tokenSource: auth.source,
-      stdout: result.stdout,
-      stderr: result.stderr,
-    };
+    try {
+      const result = await execNpm(args, { cwd, env: envForPublish });
+      return {
+        ok: result.status === 0,
+        dryRun,
+        packageName: packageJson.name,
+        version: packageJson.version,
+        tag,
+        access,
+        tokenSource: auth.source,
+        stdout: result.stdout,
+        stderr: result.stderr,
+      };
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   };
 
   return {

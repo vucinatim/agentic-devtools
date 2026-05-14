@@ -10,6 +10,7 @@ import {
   runNpmBrowserAuthFlow,
 } from "./auth.mjs";
 import { createNpmClient } from "./client.mjs";
+import { runNpmTrustGithubSetup } from "./trust-cli.mjs";
 
 const HELP_TEXT = `Usage: agentic-devtools mcp npm
 
@@ -20,6 +21,12 @@ Optional environment variables:
   NODE_AUTH_TOKEN
   NPM_CONFIG_REGISTRY
   AGENTIC_DEVTOOLS_NPM_AUTH_CONFIG_PATH
+
+Standalone flags:
+  --connect
+  --setup-publishing
+  --auth-status
+  --test-connection
 
 Prefer GitHub Actions Trusted Publishing for real package publishing. Local publishing is supported but explicit confirmation is required.
 `;
@@ -73,6 +80,23 @@ const createServer = () => {
         ...(await runNpmBrowserAuthFlow()),
         configPath: NPM_AUTH_CONFIG_PATH,
       }),
+  );
+
+  server.registerTool(
+    "setupNpmGitHubTrustedPublisher",
+    {
+      description:
+        "Run npm's official GitHub Actions Trusted Publisher setup flow. Uses npm@^11.10.0 through npx so security-key 2FA can be handled by npm.",
+      inputSchema: {
+        packageName: packageNameSchema.default("@vucinatim/agentic-devtools"),
+        repository: z.string().min(1).default("vucinatim/agentic-devtools"),
+        workflowFile: z.string().min(1).default("publish.yml"),
+        environment: z.string().optional(),
+        loginFirst: z.boolean().default(true),
+      },
+    },
+    async (args) =>
+      createToolResult(await runNpmTrustGithubSetup(args ?? {})),
   );
 
   server.registerTool(
@@ -317,6 +341,32 @@ if (argv.includes("--connect")) {
     },
   });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  process.exit(0);
+}
+
+if (argv.includes("--setup-publishing")) {
+  process.stdout.write(
+    "Running npm's official GitHub Trusted Publishing setup flow...\n",
+  );
+  const result = await runNpmTrustGithubSetup({
+    stdio: "inherit",
+    loginFirst: true,
+  });
+  if (!result.ok) {
+    process.exit(result.status || 1);
+  }
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        ok: true,
+        command: result.command,
+        args: result.args,
+        tokenSource: result.tokenSource,
+      },
+      null,
+      2,
+    )}\n`,
+  );
   process.exit(0);
 }
 
