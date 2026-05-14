@@ -6,6 +6,8 @@ import { getTool, listTools } from "./core/tool-registry.mjs";
 const usage = () => `Usage:
   agentic-devtools tools
   agentic-devtools mcp <namecheap|railway>
+  agentic-devtools connect <namecheap|railway>
+  agentic-devtools disconnect <namecheap|railway>
   agentic-devtools auth-status <namecheap|railway>
   agentic-devtools test-connection <namecheap|railway>
 
@@ -49,6 +51,40 @@ if (args[0] === "auth-status") {
     process.exit(0);
   }
   throw new Error("auth-status expects one of: namecheap, railway");
+}
+
+if (args[0] === "connect") {
+  const toolName = args[1];
+  if (toolName === "namecheap") {
+    const { runBrowserAuthFlow } = await import("./tools/namecheap/auth.mjs");
+    process.stderr.write("Opening Namecheap browser setup flow...\n");
+    printJson(await runBrowserAuthFlow());
+    process.exit(0);
+  }
+  if (toolName === "railway") {
+    const { runRailwayBrowserAuthFlow } = await import(
+      "./tools/railway/auth.mjs"
+    );
+    process.stderr.write("Opening Railway browser setup flow...\n");
+    printJson(await runRailwayBrowserAuthFlow());
+    process.exit(0);
+  }
+  throw new Error("connect expects one of: namecheap, railway");
+}
+
+if (args[0] === "disconnect") {
+  const toolName = args[1];
+  if (toolName === "namecheap") {
+    const { disconnectNamecheap } = await import("./tools/namecheap/auth.mjs");
+    printJson(await disconnectNamecheap());
+    process.exit(0);
+  }
+  if (toolName === "railway") {
+    const { disconnectRailway } = await import("./tools/railway/auth.mjs");
+    printJson(await disconnectRailway());
+    process.exit(0);
+  }
+  throw new Error("disconnect expects one of: namecheap, railway");
 }
 
 if (args[0] === "test-connection") {

@@ -1,5 +1,10 @@
-const DEFAULT_RAILWAY_API_ENDPOINT =
-  "https://backboard.railway.com/graphql/v2";
+import {
+  DEFAULT_RAILWAY_API_ENDPOINT,
+  getRailwayAuthStatus,
+  resolveRailwayApiToken,
+} from "./auth.mjs";
+
+export { getRailwayAuthStatus, resolveRailwayApiToken } from "./auth.mjs";
 
 export class RailwayApiError extends Error {
   constructor(message, details = {}) {
@@ -9,58 +14,13 @@ export class RailwayApiError extends Error {
   }
 }
 
-export const resolveRailwayApiToken = (env = process.env) => {
-  const projectToken = env.RAILWAY_PROJECT_TOKEN?.trim();
-  if (projectToken) {
-    return {
-      token: projectToken,
-      kind: "project",
-      source: "env:RAILWAY_PROJECT_TOKEN",
-    };
-  }
-
-  const apiToken = env.RAILWAY_API_TOKEN?.trim();
-  if (apiToken) {
-    return {
-      token: apiToken,
-      kind: "account",
-      source: "env:RAILWAY_API_TOKEN",
-    };
-  }
-
-  const token = env.RAILWAY_TOKEN?.trim();
-  if (token) {
-    return {
-      token,
-      kind: "account",
-      source: "env:RAILWAY_TOKEN",
-    };
-  }
-
-  return {
-    token: null,
-    kind: null,
-    source: null,
-  };
-};
-
-export const getRailwayAuthStatus = (env = process.env) => {
-  const auth = resolveRailwayApiToken(env);
-  return {
-    configured: Boolean(auth.token),
-    kind: auth.kind,
-    source: auth.source,
-    endpoint: env.RAILWAY_API_ENDPOINT?.trim() || DEFAULT_RAILWAY_API_ENDPOINT,
-    defaultProjectId: env.RAILWAY_PROJECT_ID?.trim() || null,
-  };
-};
-
 export const createRailwayClient = ({
   env = process.env,
   fetchImpl = globalThis.fetch,
 } = {}) => {
   const auth = resolveRailwayApiToken(env);
-  const endpoint = env.RAILWAY_API_ENDPOINT?.trim() || DEFAULT_RAILWAY_API_ENDPOINT;
+  const status = getRailwayAuthStatus(env);
+  const endpoint = status.endpoint || DEFAULT_RAILWAY_API_ENDPOINT;
 
   if (typeof fetchImpl !== "function") {
     throw new Error("Railway client requires a fetch implementation.");
@@ -69,7 +29,7 @@ export const createRailwayClient = ({
   const request = async (query, variables = {}) => {
     if (!auth.token) {
       throw new RailwayApiError(
-        "Missing Railway API token. Set RAILWAY_PROJECT_TOKEN, RAILWAY_API_TOKEN, or RAILWAY_TOKEN.",
+        "Missing Railway API token. Run `agentic-devtools connect railway`, or set RAILWAY_PROJECT_TOKEN, RAILWAY_API_TOKEN, or RAILWAY_TOKEN.",
       );
     }
 
@@ -111,7 +71,7 @@ export const createRailwayClient = ({
   };
 
   const resolveProjectId = async (projectId) => {
-    const explicit = projectId?.trim() || env.RAILWAY_PROJECT_ID?.trim();
+    const explicit = projectId?.trim() || status.defaultProjectId;
     if (explicit) {
       return explicit;
     }

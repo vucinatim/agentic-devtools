@@ -59,6 +59,7 @@ agentic-devtools/
     cli.ts
     index.ts
     core/
+      config-store.ts
       mcp-server.ts
       result.ts
       tool-registry.ts
@@ -70,6 +71,7 @@ agentic-devtools/
         mcp.ts
         schemas.ts
       railway/
+        auth.ts
         client.ts
         index.ts
         mcp.ts
@@ -126,6 +128,7 @@ Example CLI usage:
 ```bash
 npx -y @vucinatim/agentic-devtools mcp namecheap
 npx -y @vucinatim/agentic-devtools mcp railway
+npx -y @vucinatim/agentic-devtools connect railway
 npx @vucinatim/agentic-devtools auth-status railway
 ```
 
@@ -141,6 +144,7 @@ Each tool module should own:
 
 The shared core should own:
 
+- local config file read/write helpers
 - common tool-result formatting
 - shared MCP server setup
 - CLI routing

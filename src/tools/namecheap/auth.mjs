@@ -1,38 +1,62 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
+import { isIP } from "node:net";
+import {
+  CONFIG_ROOT,
+  escapeHtml,
+  isTruthyEnv,
+  openBrowser,
+  parseFormBody,
+  pickString,
+  readJsonConfig,
+  removeJsonConfig,
+  resolveConfigPath,
+  writeJsonConfig,
+} from "../../core/config-store.mjs";
 
-const CONFIG_ROOT = path.join(os.homedir(), ".config", "agentic-devtools");
-const AUTH_CONFIG_PATH = process.env.NAMECHEAP_AUTH_CONFIG_PATH
-  ? path.resolve(process.env.NAMECHEAP_AUTH_CONFIG_PATH)
-  : path.join(CONFIG_ROOT, "namecheap-auth.json");
+const AUTH_CONFIG_PATH = resolveConfigPath({
+  env: process.env,
+  envVar: "NAMECHEAP_AUTH_CONFIG_PATH",
+  fileName: "namecheap.json",
+});
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 
-const isTruthyEnv = (value) =>
-  typeof value === "string" &&
-  ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
-
 const resolveStoredConfig = async () => {
-  try {
-    const raw = await readFile(AUTH_CONFIG_PATH, "utf8");
-    return JSON.parse(raw);
-  } catch (error) {
-    if (error && typeof error === "object" && "code" in error) {
-      if (error.code === "ENOENT") {
-        return null;
-      }
-    }
-    throw error;
+  const stored = await readJsonConfig(AUTH_CONFIG_PATH);
+  if (stored) {
+    return stored;
   }
+
+  const legacyPath = AUTH_CONFIG_PATH.endsWith("namecheap.json")
+    ? AUTH_CONFIG_PATH.replace(/namecheap\.json$/, "namecheap-auth.json")
+    : null;
+
+  return legacyPath ? await readJsonConfig(legacyPath) : null;
 };
 
-const pick = (value, fallback) => {
-  if (typeof value === "string" && value.trim().length > 0) {
-    return value.trim();
+export const resolvePublicIpv4 = async ({
+  fetchImpl = globalThis.fetch,
+  timeoutMs = 2500,
+} = {}) => {
+  if (typeof fetchImpl !== "function") {
+    return null;
   }
-  return fallback;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetchImpl("https://api.ipify.org?format=json", {
+      signal: controller.signal,
+    });
+    const payload = await response.json();
+    const ip = typeof payload?.ip === "string" ? payload.ip.trim() : "";
+    return isIP(ip) === 4 ? ip : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 };
 
 export const getResolvedAuthConfig = async () => {
@@ -40,11 +64,11 @@ export const getResolvedAuthConfig = async () => {
   const sandboxEnv = process.env.NAMECHEAP_API_SANDBOX;
 
   const config = {
-    apiUser: pick(process.env.NAMECHEAP_API_USER, stored?.apiUser),
-    apiKey: pick(process.env.NAMECHEAP_API_KEY, stored?.apiKey),
-    username: pick(process.env.NAMECHEAP_USERNAME, stored?.username),
-    clientIp: pick(process.env.NAMECHEAP_CLIENT_IP, stored?.clientIp),
-    baseUrl: pick(process.env.NAMECHEAP_API_BASE_URL, stored?.baseUrl),
+    apiUser: pickString(process.env.NAMECHEAP_API_USER, stored?.apiUser),
+    apiKey: pickString(process.env.NAMECHEAP_API_KEY, stored?.apiKey),
+    username: pickString(process.env.NAMECHEAP_USERNAME, stored?.username),
+    clientIp: pickString(process.env.NAMECHEAP_CLIENT_IP, stored?.clientIp),
+    baseUrl: pickString(process.env.NAMECHEAP_API_BASE_URL, stored?.baseUrl),
     sandbox:
       sandboxEnv != null
         ? isTruthyEnv(sandboxEnv)
@@ -111,9 +135,7 @@ export const saveAuthConfig = async ({
     }
   }
 
-  await mkdir(path.dirname(AUTH_CONFIG_PATH), { recursive: true });
-  await writeFile(AUTH_CONFIG_PATH, JSON.stringify(config, null, 2));
-  await chmod(AUTH_CONFIG_PATH, 0o600).catch(() => {});
+  await writeJsonConfig(AUTH_CONFIG_PATH, config);
 
   return {
     configPath: AUTH_CONFIG_PATH,
@@ -121,60 +143,7 @@ export const saveAuthConfig = async ({
   };
 };
 
-const escapeHtml = (value) =>
-  String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
-const openBrowser = async (url) => {
-  if (isTruthyEnv(process.env.NAMECHEAP_SKIP_BROWSER_OPEN)) {
-    return;
-  }
-
-  const { execFile } = await import("node:child_process");
-
-  await new Promise((resolve, reject) => {
-    const platform = process.platform;
-    let command;
-    let args;
-
-    if (platform === "darwin") {
-      command = "open";
-      args = [url];
-    } else if (platform === "win32") {
-      command = "cmd";
-      args = ["/c", "start", "", url];
-    } else {
-      command = "xdg-open";
-      args = [url];
-    }
-
-    execFile(command, args, (error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-  });
-};
-
-const parseFormBody = async (request) => {
-  const chunks = [];
-
-  for await (const chunk of request) {
-    chunks.push(chunk);
-  }
-
-  const body = Buffer.concat(chunks).toString("utf8");
-  const params = new URLSearchParams(body);
-
-  return Object.fromEntries(params.entries());
-};
-
+/* v8 ignore start */
 const renderPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype html>
 <html lang="en">
   <head>
@@ -255,6 +224,11 @@ const renderPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype ht
       <div class="panel">
         <h1>Connect Namecheap</h1>
         <p>Namecheap does not use OAuth here. You need to generate an API key in Namecheap and whitelist your IPv4 address, then paste the values below.</p>
+        ${
+          defaults.detectedClientIp
+            ? `<p>Detected public IPv4: <code>${escapeHtml(defaults.detectedClientIp)}</code></p>`
+            : ""
+        }
         <ol>
           <li>Open <a href="https://www.namecheap.com/support/knowledgebase/article.aspx/763/63/what-is-sandbox/" target="_blank" rel="noreferrer">Sandbox setup</a> if you want safe testing first.</li>
           <li>Open <a href="https://ap.www.namecheap.com/settings/tools/apiaccess/" target="_blank" rel="noreferrer">production API access</a> or the Sandbox account’s API access page.</li>
@@ -305,9 +279,14 @@ const renderPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype ht
 
 export const runBrowserAuthFlow = async ({
   defaultSandbox = true,
+  fetchImpl = globalThis.fetch,
+  validateConnection = true,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 } = {}) => {
   const existing = await getResolvedAuthConfig();
+  const detectedClientIp = existing.clientIp
+    ? null
+    : await resolvePublicIpv4({ fetchImpl });
   const csrfToken = randomUUID();
 
   return await new Promise((resolve, reject) => {
@@ -334,7 +313,8 @@ export const runBrowserAuthFlow = async ({
             defaults: {
               apiUser: existing.apiUser ?? "",
               username: existing.username ?? "",
-              clientIp: existing.clientIp ?? "",
+              clientIp: existing.clientIp ?? detectedClientIp ?? "",
+              detectedClientIp,
               baseUrl: existing.baseUrl ?? "",
               sandbox: existing.sandbox || defaultSandbox,
             },
@@ -352,6 +332,19 @@ export const runBrowserAuthFlow = async ({
             });
             response.end("Invalid CSRF token.");
             return;
+          }
+
+          if (validateConnection) {
+            const { createNamecheapClient } = await import("./client.mjs");
+            const client = createNamecheapClient({
+              apiUser: body.apiUser,
+              apiKey: body.apiKey,
+              username: body.username,
+              clientIp: body.clientIp,
+              baseUrl: body.baseUrl,
+              sandbox: body.sandbox === "1",
+            });
+            await client.listDomains({ page: 1, pageSize: 1 });
           }
 
           const saved = await saveAuthConfig({
@@ -400,7 +393,7 @@ export const runBrowserAuthFlow = async ({
         }
 
         const url = `http://127.0.0.1:${address.port}/`;
-        await openBrowser(url);
+        await openBrowser(url, { skipEnvVar: "NAMECHEAP_SKIP_BROWSER_OPEN" });
       } catch (error) {
         finish(() => reject(error));
       }
@@ -417,9 +410,20 @@ export const runBrowserAuthFlow = async ({
     }, timeoutMs);
   });
 };
+/* v8 ignore stop */
 
 export const clearStoredAuthConfig = async () => {
-  await rm(AUTH_CONFIG_PATH, { force: true });
+  await removeJsonConfig(AUTH_CONFIG_PATH);
+};
+
+export const connectNamecheap = runBrowserAuthFlow;
+
+export const disconnectNamecheap = async () => {
+  await clearStoredAuthConfig();
+  return {
+    disconnected: true,
+    configPath: AUTH_CONFIG_PATH,
+  };
 };
 
 export { AUTH_CONFIG_PATH, CONFIG_ROOT };

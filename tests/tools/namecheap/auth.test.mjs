@@ -71,3 +71,26 @@ test("environment variables override the stored auth file", async () => {
   assert.equal(resolved.source, "env");
   assert.equal(resolved.sandbox, true);
 });
+
+test("public IPv4 detection returns only valid IPv4 values", async () => {
+  const authModule = await importFresh(
+    "/Users/timvucina/Desktop/MyProjects/agentic-devtools/src/tools/namecheap/auth.mjs",
+  );
+
+  assert.equal(
+    await authModule.resolvePublicIpv4({
+      fetchImpl: async () => ({
+        json: async () => ({ ip: "203.0.113.9" }),
+      }),
+    }),
+    "203.0.113.9",
+  );
+  assert.equal(
+    await authModule.resolvePublicIpv4({
+      fetchImpl: async () => ({
+        json: async () => ({ ip: "not-an-ip" }),
+      }),
+    }),
+    null,
+  );
+});

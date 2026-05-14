@@ -22,19 +22,18 @@ test("resolves project token before account tokens", () => {
 });
 
 test("reports Railway auth status without exposing token values", () => {
-  assert.deepEqual(
-    getRailwayAuthStatus({
-      RAILWAY_API_TOKEN: "account-token",
-      RAILWAY_PROJECT_ID: "project-id",
-    }),
-    {
-      configured: true,
-      kind: "account",
-      source: "env:RAILWAY_API_TOKEN",
-      endpoint: "https://backboard.railway.com/graphql/v2",
-      defaultProjectId: "project-id",
-    },
-  );
+  const status = getRailwayAuthStatus({
+    RAILWAY_API_TOKEN: "account-token",
+    RAILWAY_PROJECT_ID: "project-id",
+  });
+
+  assert.equal(status.configured, true);
+  assert.equal(status.kind, "account");
+  assert.equal(status.source, "env:RAILWAY_API_TOKEN");
+  assert.equal(status.endpoint, "https://backboard.railway.com/graphql/v2");
+  assert.equal(status.defaultProjectId, "project-id");
+  assert.equal("token" in status, false);
+  assert.match(status.configPath, /railway\.json$/);
 });
 
 test("uses bearer auth for account token requests", async () => {

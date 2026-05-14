@@ -6,6 +6,14 @@ The default user should configure their agent host to run a specific tool with
 `npx`. They do not need to add Agentic Devtools to their application
 dependencies.
 
+Run guided setup once if you want credentials stored locally instead of inline
+in MCP host config:
+
+```bash
+npx -y @vucinatim/agentic-devtools connect railway
+npx -y @vucinatim/agentic-devtools connect namecheap
+```
+
 ## Primary: MCP Host With `npx`
 
 Use this for Codex, Claude, or any MCP-compatible host.
@@ -26,6 +34,8 @@ Railway:
 }
 ```
 
+If `connect railway` has already saved a token locally, omit the `env` block.
+
 Namecheap:
 
 ```json
@@ -45,6 +55,9 @@ Namecheap:
 }
 ```
 
+If `connect namecheap` has already saved credentials locally, omit the `env`
+block.
+
 ## Secondary: Global CLI
 
 Install globally only if you want repeated terminal access without `npx`:
@@ -52,6 +65,7 @@ Install globally only if you want repeated terminal access without `npx`:
 ```bash
 npm install -g @vucinatim/agentic-devtools
 agentic-devtools tools
+agentic-devtools connect railway
 agentic-devtools auth-status railway
 agentic-devtools test-connection railway
 ```
@@ -74,12 +88,14 @@ import { createNamecheapClient } from "@vucinatim/agentic-devtools";
 
 Railway supports:
 
+- guided local setup through `agentic-devtools connect railway`
 - `RAILWAY_PROJECT_TOKEN` for project-scoped inspection
 - `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN` for account-scoped inspection
 - `RAILWAY_PROJECT_ID` as an optional default project id
 
 Namecheap supports:
 
+- guided local setup through `agentic-devtools connect namecheap`
 - `NAMECHEAP_API_USER`
 - `NAMECHEAP_API_KEY`
 - `NAMECHEAP_USERNAME`

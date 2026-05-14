@@ -14,6 +14,13 @@ npx -y @vucinatim/agentic-devtools mcp railway
 npx -y @vucinatim/agentic-devtools mcp namecheap
 ```
 
+Run the guided setup once if you do not want to put tokens in MCP host config:
+
+```bash
+npx -y @vucinatim/agentic-devtools connect railway
+npx -y @vucinatim/agentic-devtools connect namecheap
+```
+
 Start here:
 
 - [docs/architecture.md](docs/architecture.md)
@@ -70,6 +77,9 @@ Railway:
 }
 ```
 
+After `connect railway`, the same server config can omit `env` because the token
+is resolved from `~/.config/agentic-devtools/railway.json`.
+
 Namecheap:
 
 ```json
@@ -89,6 +99,9 @@ Namecheap:
 }
 ```
 
+After `connect namecheap`, the same server config can omit `env` because
+credentials are resolved from `~/.config/agentic-devtools/namecheap.json`.
+
 ### Global CLI
 
 Useful if you use the tools often from a terminal:
@@ -96,6 +109,7 @@ Useful if you use the tools often from a terminal:
 ```bash
 npm install -g @vucinatim/agentic-devtools
 agentic-devtools tools
+agentic-devtools connect railway
 agentic-devtools auth-status railway
 agentic-devtools mcp railway
 ```
