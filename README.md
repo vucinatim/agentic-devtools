@@ -17,6 +17,8 @@ npx -y @vucinatim/agentic-devtools mcp namecheap
 Start here:
 
 - [docs/architecture.md](docs/architecture.md)
+- [docs/usage.md](docs/usage.md)
+- [docs/auth-and-setup-guidelines.md](docs/auth-and-setup-guidelines.md)
 - [docs/open-source-readiness.md](docs/open-source-readiness.md)
 - [docs/publishing.md](docs/publishing.md)
 - [docs/migration-plan.md](docs/migration-plan.md)

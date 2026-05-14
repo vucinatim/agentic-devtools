@@ -48,6 +48,9 @@ Secondary paths:
 - global CLI install for repeated terminal use
 - package dependency install for users building custom automation
 
+Account setup should follow the shared auth/setup model in
+[Auth And Setup Guidelines](auth-and-setup-guidelines.md).
+
 ## Target Layout
 
 ```txt
