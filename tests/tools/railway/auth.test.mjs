@@ -8,6 +8,15 @@ import { test } from "vitest";
 const importFresh = async (modulePath) =>
   import(`${pathToFileURL(modulePath).href}?t=${Date.now()}-${Math.random()}`);
 
+const railwayAuthModulePath = path.join(
+  process.cwd(),
+  "src/tools/railway/auth.mjs",
+);
+const railwayClientModulePath = path.join(
+  process.cwd(),
+  "src/tools/railway/client.mjs",
+);
+
 test("Railway auth config can be saved and resolved from a local file", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "railway-auth-"));
   const authPath = path.join(tempDir, "railway.json");
@@ -19,9 +28,7 @@ test("Railway auth config can be saved and resolved from a local file", async ()
   delete process.env.RAILWAY_PROJECT_ID;
   delete process.env.RAILWAY_API_ENDPOINT;
 
-  const authModule = await importFresh(
-    "/Users/timvucina/Desktop/MyProjects/agentic-devtools/src/tools/railway/auth.mjs",
-  );
+  const authModule = await importFresh(railwayAuthModulePath);
 
   await authModule.saveRailwayAuthConfig({
     token: "project-token",
@@ -55,18 +62,14 @@ test("Railway client can use stored auth config without token env vars", async (
   delete process.env.RAILWAY_API_TOKEN;
   delete process.env.RAILWAY_TOKEN;
 
-  const authModule = await importFresh(
-    "/Users/timvucina/Desktop/MyProjects/agentic-devtools/src/tools/railway/auth.mjs",
-  );
+  const authModule = await importFresh(railwayAuthModulePath);
   await authModule.saveRailwayAuthConfig({
     token: "account-token",
     kind: "account",
     endpoint: "https://example.test/graphql",
   });
 
-  const { createRailwayClient } = await importFresh(
-    "/Users/timvucina/Desktop/MyProjects/agentic-devtools/src/tools/railway/client.mjs",
-  );
+  const { createRailwayClient } = await importFresh(railwayClientModulePath);
   const calls = [];
   const client = createRailwayClient({
     env: { RAILWAY_AUTH_CONFIG_PATH: authPath },
@@ -99,9 +102,7 @@ test("Railway environment tokens override stored auth config", async () => {
   delete process.env.RAILWAY_API_TOKEN;
   delete process.env.RAILWAY_TOKEN;
 
-  const authModule = await importFresh(
-    "/Users/timvucina/Desktop/MyProjects/agentic-devtools/src/tools/railway/auth.mjs",
-  );
+  const authModule = await importFresh(railwayAuthModulePath);
 
   await authModule.saveRailwayAuthConfig({
     token: "file-token",

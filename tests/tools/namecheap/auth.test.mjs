@@ -8,6 +8,8 @@ import { pathToFileURL } from "node:url";
 const importFresh = async (modulePath) =>
   import(`${pathToFileURL(modulePath).href}?t=${Date.now()}-${Math.random()}`);
 
+const authModulePath = path.join(process.cwd(), "src/tools/namecheap/auth.mjs");
+
 test("auth config can be saved and resolved from a local file", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "namecheap-auth-"));
   const authPath = path.join(tempDir, ".namecheap-auth.json");
@@ -20,9 +22,7 @@ test("auth config can be saved and resolved from a local file", async () => {
   delete process.env.NAMECHEAP_API_SANDBOX;
   delete process.env.NAMECHEAP_API_BASE_URL;
 
-  const authModule = await importFresh(
-    "/Users/timvucina/Desktop/MyProjects/agentic-devtools/src/tools/namecheap/auth.mjs",
-  );
+  const authModule = await importFresh(authModulePath);
 
   await authModule.saveAuthConfig({
     apiUser: "sandbox-user",
@@ -52,9 +52,7 @@ test("environment variables override the stored auth file", async () => {
   process.env.NAMECHEAP_CLIENT_IP = "203.0.113.5";
   process.env.NAMECHEAP_API_SANDBOX = "1";
 
-  const authModule = await importFresh(
-    "/Users/timvucina/Desktop/MyProjects/agentic-devtools/src/tools/namecheap/auth.mjs",
-  );
+  const authModule = await importFresh(authModulePath);
 
   await authModule.saveAuthConfig({
     apiUser: "file-user",
@@ -73,9 +71,7 @@ test("environment variables override the stored auth file", async () => {
 });
 
 test("public IPv4 detection returns only valid IPv4 values", async () => {
-  const authModule = await importFresh(
-    "/Users/timvucina/Desktop/MyProjects/agentic-devtools/src/tools/namecheap/auth.mjs",
-  );
+  const authModule = await importFresh(authModulePath);
 
   assert.equal(
     await authModule.resolvePublicIpv4({
