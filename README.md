@@ -161,6 +161,69 @@ Trusted Publishing notes:
   Publishing
 - each npm package currently has one Trusted Publisher connection at a time
 
+### Team Or Repo Install
+
+If a team wants one pinned version available to every developer in the repo,
+install Agentic Devtools as a dev dependency and commit the scripts or MCP
+config.
+
+Install:
+
+```bash
+npm install -D @vucinatim/agentic-devtools
+```
+
+Example `package.json` scripts:
+
+```json
+{
+  "scripts": {
+    "agentic:tools": "agentic-devtools tools",
+    "agentic:railway": "agentic-devtools mcp railway",
+    "agentic:namecheap": "agentic-devtools mcp namecheap",
+    "agentic:npm": "agentic-devtools mcp npm",
+    "agentic:connect:railway": "agentic-devtools connect railway",
+    "agentic:connect:namecheap": "agentic-devtools connect namecheap",
+    "agentic:connect:npm": "agentic-devtools connect npm"
+  }
+}
+```
+
+Example checked-in MCP config using the repo-local installed version:
+
+```json
+{
+  "mcpServers": {
+    "railway": {
+      "command": "npx",
+      "args": ["agentic-devtools", "mcp", "railway"]
+    },
+    "namecheap": {
+      "command": "npx",
+      "args": ["agentic-devtools", "mcp", "namecheap"]
+    },
+    "npm": {
+      "command": "npx",
+      "args": ["agentic-devtools", "mcp", "npm"]
+    }
+  }
+}
+```
+
+Each developer still runs their own local auth setup:
+
+```bash
+npm run agentic:connect:railway
+npm run agentic:connect:namecheap
+npm run agentic:connect:npm
+```
+
+This keeps:
+
+- package version and MCP config shared in the repo
+- credentials local to each developer under `~/.config/agentic-devtools/`
+- global install optional instead of required
+
 ### Global CLI
 
 Useful if you use the tools often from a terminal:
