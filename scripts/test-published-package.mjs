@@ -57,9 +57,24 @@ const run = async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "agentic-devtools-published-"));
 
   try {
-    await testNpxUsage({ packageSpec, tempRoot });
-    await testGlobalInstallUsage({ packageSpec, tempRoot });
-    await testProjectDependencyUsage({ packageSpec, tempRoot });
+    await testNpxUsage({
+      packageSpec,
+      tempRoot,
+      waitTimeoutMs,
+      waitIntervalMs,
+    });
+    await testGlobalInstallUsage({
+      packageSpec,
+      tempRoot,
+      waitTimeoutMs,
+      waitIntervalMs,
+    });
+    await testProjectDependencyUsage({
+      packageSpec,
+      tempRoot,
+      waitTimeoutMs,
+      waitIntervalMs,
+    });
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -67,73 +82,104 @@ const run = async () => {
   console.log(`Published package ${packageSpec} passed smoke tests.`);
 };
 
-const testNpxUsage = async ({ packageSpec, tempRoot }) => {
+const testNpxUsage = async ({
+  packageSpec,
+  tempRoot,
+  waitTimeoutMs: timeoutMs,
+  waitIntervalMs: intervalMs,
+}) => {
   console.log("Checking npx usage...");
   const cwd = path.join(tempRoot, "npx");
   await mkdir(cwd, { recursive: true });
 
-  const help = await execCommand("npx", ["-y", packageSpec, "--help"], { cwd });
-  assert.match(help.stdout, /agentic-devtools mcp <namecheap\|railway\|npm>/);
+  await withPackageAvailabilityRetry(
+    async () => {
+      const help = await execCommand("npx", ["-y", packageSpec, "--help"], {
+        cwd,
+      });
+      assert.match(help.stdout, /agentic-devtools mcp <namecheap\|railway\|npm>/);
 
-  const tools = await execJsonCommand("npx", ["-y", packageSpec, "tools"], { cwd });
-  assert.deepEqual(
-    tools.map((tool) => tool.name),
-    ["namecheap", "railway", "npm"],
+      const tools = await execJsonCommand(
+        "npx",
+        ["-y", packageSpec, "tools"],
+        { cwd },
+      );
+      assert.deepEqual(
+        tools.map((tool) => tool.name),
+        ["namecheap", "railway", "npm"],
+      );
+
+      const npmAuthStatus = await execJsonCommand(
+        "npx",
+        ["-y", packageSpec, "auth-status", "npm"],
+        { cwd },
+      );
+      assert.equal(typeof npmAuthStatus.configured, "boolean");
+      assert.equal(typeof npmAuthStatus.registry, "string");
+
+      for (const toolName of ["namecheap", "railway", "npm"]) {
+        const helpResult = await execCommand(
+          "npx",
+          ["-y", packageSpec, "mcp", toolName, "--help"],
+          { cwd },
+        );
+        assert.match(
+          helpResult.stdout,
+          new RegExp(`Usage: agentic-devtools mcp ${toolName}`),
+        );
+      }
+    },
+    { packageSpec, timeoutMs, intervalMs },
   );
-
-  const npmAuthStatus = await execJsonCommand("npx", [
-    "-y",
-    packageSpec,
-    "auth-status",
-    "npm",
-  ], { cwd });
-  assert.equal(typeof npmAuthStatus.configured, "boolean");
-  assert.equal(typeof npmAuthStatus.registry, "string");
-
-  for (const toolName of ["namecheap", "railway", "npm"]) {
-    const helpResult = await execCommand("npx", [
-      "-y",
-      packageSpec,
-      "mcp",
-      toolName,
-      "--help",
-    ], { cwd });
-    assert.match(helpResult.stdout, new RegExp(`Usage: agentic-devtools mcp ${toolName}`));
-  }
 };
 
-const testGlobalInstallUsage = async ({ packageSpec, tempRoot }) => {
+const testGlobalInstallUsage = async ({
+  packageSpec,
+  tempRoot,
+  waitTimeoutMs: timeoutMs,
+  waitIntervalMs: intervalMs,
+}) => {
   console.log("Checking global install usage...");
 
   const prefix = path.join(tempRoot, "global");
-  await execCommand("npm", ["install", "-g", "--prefix", prefix, packageSpec]);
+  await withPackageAvailabilityRetry(
+    async () => {
+      await execCommand("npm", ["install", "-g", "--prefix", prefix, packageSpec]);
 
-  const binaryCandidates =
-    process.platform === "win32"
-      ? [
-          path.join(prefix, "agentic-devtools.cmd"),
-          path.join(prefix, "bin", "agentic-devtools.cmd"),
-        ]
-      : [path.join(prefix, "bin", "agentic-devtools")];
-  const binaryPath = binaryCandidates.find((candidate) => existsSync(candidate));
+      const binaryCandidates =
+        process.platform === "win32"
+          ? [
+              path.join(prefix, "agentic-devtools.cmd"),
+              path.join(prefix, "bin", "agentic-devtools.cmd"),
+            ]
+          : [path.join(prefix, "bin", "agentic-devtools")];
+      const binaryPath = binaryCandidates.find((candidate) => existsSync(candidate));
 
-  if (!binaryPath) {
-    throw new Error(
-      `Could not find installed agentic-devtools binary under prefix ${prefix}.`,
-    );
-  }
+      if (!binaryPath) {
+        throw new Error(
+          `Could not find installed agentic-devtools binary under prefix ${prefix}.`,
+        );
+      }
 
-  const help = await execCommand(binaryPath, ["--help"]);
-  assert.match(help.stdout, /agentic-devtools connect <namecheap\|railway\|npm>/);
+      const help = await execCommand(binaryPath, ["--help"]);
+      assert.match(help.stdout, /agentic-devtools connect <namecheap\|railway\|npm>/);
 
-  const tools = await execJsonCommand(binaryPath, ["tools"]);
-  assert.deepEqual(
-    tools.map((tool) => tool.name),
-    ["namecheap", "railway", "npm"],
+      const tools = await execJsonCommand(binaryPath, ["tools"]);
+      assert.deepEqual(
+        tools.map((tool) => tool.name),
+        ["namecheap", "railway", "npm"],
+      );
+    },
+    { packageSpec, timeoutMs, intervalMs },
   );
 };
 
-const testProjectDependencyUsage = async ({ packageSpec, tempRoot }) => {
+const testProjectDependencyUsage = async ({
+  packageSpec,
+  tempRoot,
+  waitTimeoutMs: timeoutMs,
+  waitIntervalMs: intervalMs,
+}) => {
   console.log("Checking project dependency usage...");
 
   const projectDir = path.join(tempRoot, "project");
@@ -151,16 +197,18 @@ const testProjectDependencyUsage = async ({ packageSpec, tempRoot }) => {
     ),
   );
 
-  await execCommand("npm", ["install", packageSpec], {
-    cwd: projectDir,
-  });
+  await withPackageAvailabilityRetry(
+    async () => {
+      await execCommand("npm", ["install", packageSpec], {
+        cwd: projectDir,
+      });
 
-  const importCheck = await execJsonCommand(
-    process.execPath,
-    [
-      "--input-type=module",
-      "-e",
-      `
+      const importCheck = await execJsonCommand(
+        process.execPath,
+        [
+          "--input-type=module",
+          "-e",
+          `
         import {
           listTools,
           createNamecheapClient,
@@ -179,19 +227,22 @@ const testProjectDependencyUsage = async ({ packageSpec, tempRoot }) => {
           }
         }));
       `,
-    ],
-    {
-      cwd: projectDir,
-    },
-  );
+        ],
+        {
+          cwd: projectDir,
+        },
+      );
 
-  assert.deepEqual(importCheck.toolNames, ["namecheap", "railway", "npm"]);
-  assert.deepEqual(importCheck.exports, {
-    createNamecheapClient: "function",
-    createRailwayClient: "function",
-    createNpmClient: "function",
-    encodePackageName: "%40scope%2Fpkg",
-  });
+      assert.deepEqual(importCheck.toolNames, ["namecheap", "railway", "npm"]);
+      assert.deepEqual(importCheck.exports, {
+        createNamecheapClient: "function",
+        createRailwayClient: "function",
+        createNpmClient: "function",
+        encodePackageName: "%40scope%2Fpkg",
+      });
+    },
+    { packageSpec, timeoutMs, intervalMs },
+  );
 };
 
 const getPublishedLatestVersion = async (name) => {
@@ -234,6 +285,40 @@ const waitForPublishedVersion = async ({
 
 const execJsonCommand = async (command, commandArgs, options = {}) =>
   JSON.parse((await execCommand(command, commandArgs, options)).stdout);
+
+const withPackageAvailabilityRetry = async (
+  action,
+  { packageSpec, timeoutMs, intervalMs },
+) => {
+  const startedAt = Date.now();
+
+  while (true) {
+    try {
+      return await action();
+    } catch (error) {
+      if (
+        !isTransientPackageAvailabilityError(error) ||
+        Date.now() - startedAt >= timeoutMs
+      ) {
+        throw error;
+      }
+    }
+
+    console.log(`Waiting for ${packageSpec} to become installable from npm...`);
+    await sleep(intervalMs);
+  }
+};
+
+const isTransientPackageAvailabilityError = (error) => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error.message.includes("No matching version found") ||
+    error.message.includes("npm error code ETARGET")
+  );
+};
 
 const execCommand = async (command, commandArgs, { cwd } = {}) => {
   const result = await new Promise((resolve, reject) => {
