@@ -1,0 +1,72 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "npm dist-tag"
+        required: true
+        default: "latest"
+        type: choice
+        options:
+          - latest
+          - next
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          cache: "npm"
+
+      - name: Ensure npm CLI Supports Trusted Publishing
+        run: |
+          npm install -g npm@latest
+          node --version
+          npm --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Pack dry run
+        run: npm run pack:dry
+
+      - name: Publish to npm
+        run: npm publish --access public --tag "${{ github.event.inputs.tag }}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v${VERSION}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists."
+          else
+            git tag "${TAG}"
+            git push origin "${TAG}"
+          fi
+          gh release view "${TAG}" >/dev/null 2>&1 || gh release create "${TAG}" --title "${TAG}" --generate-notes

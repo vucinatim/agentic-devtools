@@ -1,0 +1,39 @@
+{
+  "name": "railway",
+  "version": "0.1.0",
+  "description": "Inspect Railway projects, environments, and deployments from Codex.",
+  "author": {
+    "name": "Tim Vucina",
+    "email": "tim@vucina.com",
+    "url": "https://github.com/vucinatim"
+  },
+  "homepage": "https://railway.com/",
+  "repository": "[TODO: https://github.com/vucinatim/agentic-devtools/tree/main/plugins/railway]",
+  "license": "Apache-2.0",
+  "keywords": [
+    "railway",
+    "deployments",
+    "infrastructure"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Railway",
+    "shortDescription": "Inspect Railway projects and deployments from Codex.",
+    "longDescription": "Connect Railway so Codex can inspect account identity, projects, environments, service instances, domains, and deployment status through a focused read-only MCP surface.",
+    "developerName": "Tim Vucina",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read"
+    ],
+    "websiteURL": "https://railway.com/",
+    "privacyPolicyURL": "https://railway.com/legal/privacy",
+    "termsOfServiceURL": "https://railway.com/legal/terms",
+    "defaultPrompt": [
+      "Show me my Railway projects.",
+      "Inspect this Railway project's production environment.",
+      "Check the deployment status for this Railway project."
+    ],
+    "brandColor": "#0b0d0e"
+  }
+}

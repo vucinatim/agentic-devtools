@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "namecheap": {
+      "command": "node",
+      "args": [
+        "../../../src/cli.mjs",
+        "mcp",
+        "namecheap"
+      ],
+      "env": {
+        "NAMECHEAP_API_USER": "[TODO]",
+        "NAMECHEAP_API_KEY": "[TODO]",
+        "NAMECHEAP_USERNAME": "[TODO]",
+        "NAMECHEAP_CLIENT_IP": "[TODO]",
+        "NAMECHEAP_API_SANDBOX": "[TODO: optional 1 for sandbox]",
+        "NAMECHEAP_API_BASE_URL": "[TODO: optional explicit override]"
+      }
+    }
+  }
+}

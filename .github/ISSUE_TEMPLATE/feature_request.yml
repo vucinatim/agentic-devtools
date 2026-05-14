@@ -1,0 +1,25 @@
+name: Feature request
+description: Propose a focused improvement.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or agent workflow should this improve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the smallest useful solution.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety
+      description: Call out auth, write operations, or destructive behavior if relevant.

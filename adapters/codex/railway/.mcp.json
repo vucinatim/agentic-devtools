@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "railway": {
+      "command": "node",
+      "args": [
+        "../../../src/cli.mjs",
+        "mcp",
+        "railway"
+      ],
+      "env": {
+        "RAILWAY_PROJECT_TOKEN": "[TODO: optional project-scoped token]",
+        "RAILWAY_API_TOKEN": "[TODO: optional account-scoped token]",
+        "RAILWAY_TOKEN": "[TODO: optional account-scoped token fallback]",
+        "RAILWAY_PROJECT_ID": "[TODO: optional default project id]",
+        "RAILWAY_API_ENDPOINT": "[TODO: optional explicit GraphQL endpoint override]"
+      }
+    }
+  }
+}

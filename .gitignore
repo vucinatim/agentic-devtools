@@ -1,0 +1,11 @@
+.DS_Store
+.agents-cache
+.env
+.env.*
+node_modules
+dist
+coverage
+*.tgz
+*.log
+*.tsbuildinfo
+.namecheap-auth.json

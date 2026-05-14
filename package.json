@@ -1,0 +1,64 @@
+{
+  "name": "@vucinatim/agentic-devtools",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Agent-friendly MCP tools for developer platforms.",
+  "type": "module",
+  "license": "MIT",
+  "author": {
+    "name": "Tim Vucina",
+    "email": "tim@vucina.com",
+    "url": "https://github.com/vucinatim"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vucinatim/agentic-devtools.git"
+  },
+  "homepage": "https://github.com/vucinatim/agentic-devtools#readme",
+  "bugs": {
+    "url": "https://github.com/vucinatim/agentic-devtools/issues"
+  },
+  "keywords": [
+    "agentic-devtools",
+    "mcp",
+    "agents",
+    "namecheap",
+    "railway",
+    "developer-tools"
+  ],
+  "bin": {
+    "agentic-devtools": "./src/cli.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./namecheap": "./src/tools/namecheap/client.mjs",
+    "./railway": "./src/tools/railway/client.mjs"
+  },
+  "files": [
+    "src",
+    "adapters",
+    "docs",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/check-syntax.mjs",
+    "check": "npm run build && npm test",
+    "pack:dry": "npm pack --dry-run",
+    "test": "node --test tests/tools/namecheap/*.test.mjs tests/tools/railway/*.test.mjs",
+    "test:namecheap": "node --test \"tests/tools/namecheap/*.test.mjs\"",
+    "test:railway": "node --test \"tests/tools/railway/*.test.mjs\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "fast-xml-parser": "^5.8.0",
+    "zod": "^4.2.1"
+  }
+}

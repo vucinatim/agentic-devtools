@@ -1,0 +1,32 @@
+{
+  "name": "agentic-devtools-local",
+  "interface": {
+    "displayName": "Agentic Devtools Local"
+  },
+  "plugins": [
+    {
+      "name": "namecheap",
+      "source": {
+        "source": "local",
+        "path": "./adapters/codex/namecheap"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "railway",
+      "source": {
+        "source": "local",
+        "path": "./adapters/codex/railway"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+name: Bug report
+description: Report a reproducible problem in Agentic Devtools.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the bug and the behavior you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How to reproduce it
+      description: Include commands, environment variables used, and relevant tool names.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Node version, package version, and agent host if relevant.

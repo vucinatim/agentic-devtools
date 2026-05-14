@@ -1,0 +1,40 @@
+{
+  "name": "namecheap",
+  "version": "0.1.0",
+  "description": "Manage Namecheap domains and DNS from Codex.",
+  "author": {
+    "name": "Tim Vucina",
+    "email": "tim@vucina.com",
+    "url": "https://github.com/vucinatim"
+  },
+  "homepage": "https://www.namecheap.com/",
+  "repository": "[TODO: https://github.com/vucinatim/agentic-devtools/tree/main/plugins/namecheap]",
+  "license": "Apache-2.0",
+  "keywords": [
+    "namecheap",
+    "domains",
+    "dns"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Namecheap",
+    "shortDescription": "Manage Namecheap domains and DNS from Codex.",
+    "longDescription": "Connect Namecheap so Codex can inspect domains, read DNS state, and safely update host records through a focused MCP surface.",
+    "developerName": "Tim Vucina",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://www.namecheap.com/",
+    "privacyPolicyURL": "https://www.namecheap.com/legal/general/privacy-policy/",
+    "termsOfServiceURL": "https://www.namecheap.com/legal/universal/registration-agreement/",
+    "defaultPrompt": [
+      "Show me the DNS records for my domain.",
+      "Create a CNAME record for this subdomain.",
+      "Audit my Namecheap DNS setup for common issues."
+    ],
+    "brandColor": "#de3723"
+  }
+}
