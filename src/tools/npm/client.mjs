@@ -49,10 +49,15 @@ export const createNpmClient = ({
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    const payload = await response.json().catch(async () => {
-      const text = await response.text();
-      return text ? { error: text } : null;
-    });
+    const text = await response.text();
+    let payload = null;
+    if (text) {
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        payload = { error: text };
+      }
+    }
 
     if (!response.ok) {
       throw new NpmRegistryError(formatNpmErrorMessage(payload, response.status), {

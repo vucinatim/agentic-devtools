@@ -30,7 +30,7 @@
     "developer-tools"
   ],
   "bin": {
-    "agentic-devtools": "./src/cli.mjs"
+    "agentic-devtools": "src/cli.mjs"
   },
   "exports": {
     ".": "./src/index.mjs",
