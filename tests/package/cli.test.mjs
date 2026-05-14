@@ -19,8 +19,11 @@ test("CLI prints usage", () => {
   const result = runCli(["--help"]);
 
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /agentic-devtools mcp <namecheap\|railway>/);
-  assert.match(result.stdout, /agentic-devtools connect <namecheap\|railway>/);
+  assert.match(result.stdout, /agentic-devtools mcp <namecheap\|railway\|npm>/);
+  assert.match(
+    result.stdout,
+    /agentic-devtools connect <namecheap\|railway\|npm>/,
+  );
 });
 
 test("README-facing npx command shape maps to the CLI contract", () => {
@@ -36,7 +39,7 @@ test("CLI lists registered tools as JSON", () => {
   const tools = JSON.parse(result.stdout);
   assert.deepEqual(
     tools.map((tool) => tool.name),
-    ["namecheap", "railway"],
+    ["namecheap", "railway", "npm"],
   );
 });
 

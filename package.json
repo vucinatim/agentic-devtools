@@ -26,6 +26,7 @@
     "ai-agents",
     "namecheap",
     "railway",
+    "npm",
     "developer-tools"
   ],
   "bin": {
@@ -34,7 +35,8 @@
   "exports": {
     ".": "./src/index.mjs",
     "./namecheap": "./src/tools/namecheap/client.mjs",
-    "./railway": "./src/tools/railway/client.mjs"
+    "./railway": "./src/tools/railway/client.mjs",
+    "./npm": "./src/tools/npm/client.mjs"
   },
   "files": [
     "src",

@@ -15,15 +15,16 @@ test("createJsonResult returns MCP text and structured content", () => {
 test("getTool returns registered tools", () => {
   assert.equal(getTool("namecheap").name, "namecheap");
   assert.equal(getTool("railway").name, "railway");
+  assert.equal(getTool("npm").name, "npm");
   assert.deepEqual(
     listTools().map((tool) => tool.name),
-    ["namecheap", "railway"],
+    ["namecheap", "railway", "npm"],
   );
 });
 
 test("getTool rejects unknown tool names with available options", () => {
   assert.throws(
     () => getTool("unknown"),
-    /Unknown tool "unknown".*namecheap, railway/,
+    /Unknown tool "unknown".*namecheap, railway, npm/,
   );
 });

@@ -29,4 +29,19 @@ export {
   runRailwayBrowserAuthFlow,
   saveRailwayAuthConfig,
 } from "./tools/railway/auth.mjs";
+export {
+  clearStoredNpmAuthConfig,
+  connectNpm,
+  disconnectNpm,
+  getNpmAuthStatus,
+  NPM_AUTH_CONFIG_PATH,
+  resolveNpmAuthConfig,
+  runNpmBrowserAuthFlow,
+  saveNpmAuthConfig,
+} from "./tools/npm/auth.mjs";
+export {
+  createNpmClient,
+  encodePackageName,
+  NpmRegistryError,
+} from "./tools/npm/client.mjs";
 export { getTool, listTools, tools } from "./core/tool-registry.mjs";

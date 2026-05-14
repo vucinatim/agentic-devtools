@@ -9,6 +9,11 @@ export const tools = {
     description: "Inspect Railway projects, environments, and deployments.",
     mcpModule: "../tools/railway/mcp.mjs",
   },
+  npm: {
+    name: "npm",
+    description: "Inspect npm packages, auth, tokens, and publishing setup.",
+    mcpModule: "../tools/npm/mcp.mjs",
+  },
 };
 
 export const listTools = () => Object.values(tools);

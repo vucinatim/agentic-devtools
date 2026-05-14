@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "npm": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@vucinatim/agentic-devtools",
+        "mcp",
+        "npm"
+      ],
+      "env": {
+        "NPM_TOKEN": "[TODO: optional npm granular token]",
+        "NODE_AUTH_TOKEN": "[TODO: optional npm token fallback]",
+        "NPM_CONFIG_REGISTRY": "[TODO: optional registry override]"
+      }
+    }
+  }
+}

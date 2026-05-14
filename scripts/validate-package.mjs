@@ -42,6 +42,7 @@ const requiredFiles = [
   "src/index.mjs",
   "src/tools/namecheap/client.mjs",
   "src/tools/railway/client.mjs",
+  "src/tools/npm/client.mjs",
 ];
 
 const missingFiles = requiredFiles.filter((file) => !files.includes(file));

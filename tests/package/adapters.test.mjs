@@ -16,6 +16,11 @@ test("Codex adapter configs run published package through npx", async () => {
       server: "railway",
       tool: "railway",
     },
+    {
+      path: "adapters/codex/npm/.mcp.json",
+      server: "npm",
+      tool: "npm",
+    },
   ];
 
   for (const entry of cases) {
@@ -36,6 +41,7 @@ test("Codex adapter manifests point at current public repo paths", async () => {
   const cases = [
     "adapters/codex/namecheap/.codex-plugin/plugin.json",
     "adapters/codex/railway/.codex-plugin/plugin.json",
+    "adapters/codex/npm/.codex-plugin/plugin.json",
   ];
 
   for (const path of cases) {

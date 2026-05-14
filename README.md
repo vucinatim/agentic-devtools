@@ -3,7 +3,7 @@
 Reusable developer tools for AI agents.
 
 Agentic Devtools is an MCP-first open-source package for developer platforms
-such as Railway and Namecheap. It is meant to be run directly by MCP hosts with
+such as Railway, Namecheap, and npm. It is meant to be run directly by MCP hosts with
 `npx`, while still exposing package imports for custom automation.
 
 Most users should not install this into their app. Point your agent host at the
@@ -12,6 +12,7 @@ tool you need:
 ```bash
 npx -y @vucinatim/agentic-devtools mcp railway
 npx -y @vucinatim/agentic-devtools mcp namecheap
+npx -y @vucinatim/agentic-devtools mcp npm
 ```
 
 Run the guided setup once if you do not want to put tokens in MCP host config:
@@ -19,6 +20,7 @@ Run the guided setup once if you do not want to put tokens in MCP host config:
 ```bash
 npx -y @vucinatim/agentic-devtools connect railway
 npx -y @vucinatim/agentic-devtools connect namecheap
+npx -y @vucinatim/agentic-devtools connect npm
 ```
 
 Start here:
@@ -102,6 +104,22 @@ Namecheap:
 After `connect namecheap`, the same server config can omit `env` because
 credentials are resolved from `~/.config/agentic-devtools/namecheap.json`.
 
+npm:
+
+```json
+{
+  "mcpServers": {
+    "npm": {
+      "command": "npx",
+      "args": ["-y", "@vucinatim/agentic-devtools", "mcp", "npm"]
+    }
+  }
+}
+```
+
+Use `connect npm` for guided token setup. For real package releases, prefer
+GitHub Actions Trusted Publishing over local write tokens.
+
 ### Global CLI
 
 Useful if you use the tools often from a terminal:
@@ -125,6 +143,7 @@ npm install @vucinatim/agentic-devtools
 ```js
 import { createRailwayClient } from "@vucinatim/agentic-devtools";
 import { createNamecheapClient } from "@vucinatim/agentic-devtools";
+import { createNpmClient } from "@vucinatim/agentic-devtools";
 ```
 
 ## Design rule
@@ -139,6 +158,7 @@ Keep the integration logic host-agnostic:
 
 - `namecheap`
 - `railway`
+- `npm`
 
 ## Development
 

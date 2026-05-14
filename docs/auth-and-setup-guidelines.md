@@ -170,6 +170,32 @@ The setup flow should therefore be guided:
 Do not describe Namecheap as one-click unless we later build a hosted connector
 with a stable egress IP and explicit security model.
 
+## npm
+
+npm is Tier 2 for local tools and Tier 1 for CI publishing.
+
+For local MCP use, npm does not provide a normal third-party OAuth flow. Use a
+guided token setup:
+
+1. `connect npm`
+2. open local browser setup page
+3. link to npm granular access token settings
+4. explain least-privilege token selection
+5. accept token
+6. validate with npm identity endpoint
+7. store token in `~/.config/agentic-devtools/npm.json`
+
+Supported auth sources:
+
+- `NPM_TOKEN`
+- `NODE_AUTH_TOKEN`
+- explicit `.npmrc` auth token
+- local Agentic Devtools npm config
+
+For package publishing, prefer GitHub Actions Trusted Publishing through OIDC.
+The local npm tool may support publishing for controlled use cases, but real
+publishes must be explicit and confirmation-gated. Dry-run should be the default.
+
 ## Hosted Connect Option
 
 A future hosted “Agentic Devtools Connect” service could reduce friction further.

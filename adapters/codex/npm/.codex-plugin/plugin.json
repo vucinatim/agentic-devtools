@@ -1,0 +1,41 @@
+{
+  "name": "npm",
+  "version": "0.1.0",
+  "description": "Run the Agentic Devtools npm MCP server from Codex.",
+  "author": {
+    "name": "Tim Vucina",
+    "email": "tim@vucina.com",
+    "url": "https://github.com/vucinatim"
+  },
+  "homepage": "https://www.npmjs.com/",
+  "repository": "https://github.com/vucinatim/agentic-devtools/tree/main/adapters/codex/npm",
+  "license": "MIT",
+  "keywords": [
+    "npm",
+    "packages",
+    "publishing",
+    "registry"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "npm",
+    "shortDescription": "Run npm registry MCP tools from Agentic Devtools.",
+    "longDescription": "Connect npm so Codex can inspect package metadata, check package names, review token status, inspect publishing setup, and run explicit publish dry-runs through the published Agentic Devtools MCP runtime.",
+    "developerName": "Tim Vucina",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://www.npmjs.com/",
+    "privacyPolicyURL": "https://docs.npmjs.com/policies/privacy",
+    "termsOfServiceURL": "https://docs.npmjs.com/policies/terms",
+    "defaultPrompt": [
+      "Check whether this npm package name is available.",
+      "Show me the published versions and dist-tags for this package.",
+      "Run an npm publish dry-run for this package directory."
+    ],
+    "brandColor": "#cb3837"
+  }
+}

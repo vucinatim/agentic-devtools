@@ -5,15 +5,16 @@ import { getTool, listTools } from "./core/tool-registry.mjs";
 
 const usage = () => `Usage:
   agentic-devtools tools
-  agentic-devtools mcp <namecheap|railway>
-  agentic-devtools connect <namecheap|railway>
-  agentic-devtools disconnect <namecheap|railway>
-  agentic-devtools auth-status <namecheap|railway>
-  agentic-devtools test-connection <namecheap|railway>
+  agentic-devtools mcp <namecheap|railway|npm>
+  agentic-devtools connect <namecheap|railway|npm>
+  agentic-devtools disconnect <namecheap|railway|npm>
+  agentic-devtools auth-status <namecheap|railway|npm>
+  agentic-devtools test-connection <namecheap|railway|npm>
 
 Environment:
   Namecheap: NAMECHEAP_API_USER, NAMECHEAP_API_KEY, NAMECHEAP_USERNAME, NAMECHEAP_CLIENT_IP
   Railway:   RAILWAY_PROJECT_TOKEN or RAILWAY_API_TOKEN / RAILWAY_TOKEN
+  npm:       NPM_TOKEN or NODE_AUTH_TOKEN
 `;
 
 const args = process.argv.slice(2);
@@ -50,7 +51,12 @@ if (args[0] === "auth-status") {
     printJson(getRailwayAuthStatus());
     process.exit(0);
   }
-  throw new Error("auth-status expects one of: namecheap, railway");
+  if (toolName === "npm") {
+    const { getNpmAuthStatus } = await import("./tools/npm/auth.mjs");
+    printJson(getNpmAuthStatus());
+    process.exit(0);
+  }
+  throw new Error("auth-status expects one of: namecheap, railway, npm");
 }
 
 if (args[0] === "connect") {
@@ -69,7 +75,13 @@ if (args[0] === "connect") {
     printJson(await runRailwayBrowserAuthFlow());
     process.exit(0);
   }
-  throw new Error("connect expects one of: namecheap, railway");
+  if (toolName === "npm") {
+    const { runNpmBrowserAuthFlow } = await import("./tools/npm/auth.mjs");
+    process.stderr.write("Opening npm browser setup flow...\n");
+    printJson(await runNpmBrowserAuthFlow());
+    process.exit(0);
+  }
+  throw new Error("connect expects one of: namecheap, railway, npm");
 }
 
 if (args[0] === "disconnect") {
@@ -84,7 +96,12 @@ if (args[0] === "disconnect") {
     printJson(await disconnectRailway());
     process.exit(0);
   }
-  throw new Error("disconnect expects one of: namecheap, railway");
+  if (toolName === "npm") {
+    const { disconnectNpm } = await import("./tools/npm/auth.mjs");
+    printJson(await disconnectNpm());
+    process.exit(0);
+  }
+  throw new Error("disconnect expects one of: namecheap, railway, npm");
 }
 
 if (args[0] === "test-connection") {
@@ -118,7 +135,18 @@ if (args[0] === "test-connection") {
     });
     process.exit(0);
   }
-  throw new Error("test-connection expects one of: namecheap, railway");
+  if (toolName === "npm") {
+    const { createNpmClient } = await import("./tools/npm/client.mjs");
+    const client = createNpmClient();
+    printJson({
+      ok: true,
+      tokenSource: client.auth.source,
+      registry: client.registry,
+      user: await client.getCurrentUser(),
+    });
+    process.exit(0);
+  }
+  throw new Error("test-connection expects one of: namecheap, railway, npm");
 }
 
 throw new Error(`Unknown command "${args[0]}".\n\n${usage()}`);

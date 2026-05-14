@@ -39,6 +39,7 @@ The primary usage path is MCP execution through `npx`:
 ```bash
 npx -y @vucinatim/agentic-devtools mcp railway
 npx -y @vucinatim/agentic-devtools mcp namecheap
+npx -y @vucinatim/agentic-devtools mcp npm
 ```
 
 This keeps Agentic Devtools out of the user's application dependency tree.
@@ -71,6 +72,12 @@ agentic-devtools/
         mcp.ts
         schemas.ts
       railway/
+        auth.ts
+        client.ts
+        index.ts
+        mcp.ts
+        schemas.ts
+      npm/
         auth.ts
         client.ts
         index.ts
@@ -128,6 +135,7 @@ Example CLI usage:
 ```bash
 npx -y @vucinatim/agentic-devtools mcp namecheap
 npx -y @vucinatim/agentic-devtools mcp railway
+npx -y @vucinatim/agentic-devtools mcp npm
 npx -y @vucinatim/agentic-devtools connect railway
 npx @vucinatim/agentic-devtools auth-status railway
 ```
@@ -171,6 +179,10 @@ changes have a proper confirmation model.
 Namecheap already has DNS mutation tools. Those should continue to prefer
 preserving existing state and should clearly label full-zone replacement as
 destructive.
+
+npm supports publishing operations, but GitHub Actions Trusted Publishing should
+remain the preferred release path. Local npm publishing must default to dry-run
+and require an exact confirmation string for real publishes.
 
 ## Host Adapters
 

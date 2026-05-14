@@ -12,6 +12,7 @@ in MCP host config:
 ```bash
 npx -y @vucinatim/agentic-devtools connect railway
 npx -y @vucinatim/agentic-devtools connect namecheap
+npx -y @vucinatim/agentic-devtools connect npm
 ```
 
 ## Primary: MCP Host With `npx`
@@ -58,6 +59,22 @@ Namecheap:
 If `connect namecheap` has already saved credentials locally, omit the `env`
 block.
 
+npm:
+
+```json
+{
+  "mcpServers": {
+    "npm": {
+      "command": "npx",
+      "args": ["-y", "@vucinatim/agentic-devtools", "mcp", "npm"]
+    }
+  }
+}
+```
+
+Use `connect npm` for guided token setup when package inspection or token
+operations require authentication.
+
 ## Secondary: Global CLI
 
 Install globally only if you want repeated terminal access without `npx`:
@@ -66,6 +83,7 @@ Install globally only if you want repeated terminal access without `npx`:
 npm install -g @vucinatim/agentic-devtools
 agentic-devtools tools
 agentic-devtools connect railway
+agentic-devtools connect npm
 agentic-devtools auth-status railway
 agentic-devtools test-connection railway
 ```
@@ -82,6 +100,7 @@ npm install @vucinatim/agentic-devtools
 ```js
 import { createRailwayClient } from "@vucinatim/agentic-devtools";
 import { createNamecheapClient } from "@vucinatim/agentic-devtools";
+import { createNpmClient } from "@vucinatim/agentic-devtools";
 ```
 
 ## Auth
@@ -102,6 +121,18 @@ Namecheap supports:
 - `NAMECHEAP_CLIENT_IP`
 - `NAMECHEAP_API_SANDBOX=1` for sandbox usage
 - `NAMECHEAP_API_BASE_URL` for an explicit endpoint override
+
+npm supports:
+
+- guided local setup through `agentic-devtools connect npm`
+- `NPM_TOKEN`
+- `NODE_AUTH_TOKEN`
+- `.npmrc` auth token resolution
+- `NPM_CONFIG_REGISTRY` for registry override
+
+For publishing, prefer GitHub Actions Trusted Publishing. Local publishing is
+available through the npm MCP client but defaults to dry-run and requires an
+explicit confirmation string for real publishes.
 
 ## Usage Philosophy
 
