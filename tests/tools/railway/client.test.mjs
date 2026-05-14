@@ -63,6 +63,47 @@ test("uses bearer auth for account token requests", async () => {
   assert.equal(calls[0].init.headers["Project-Access-Token"], undefined);
 });
 
+test("validates scoped account tokens via project listing", async () => {
+  const client = createRailwayClient({
+    env: {
+      RAILWAY_API_TOKEN: "account-token",
+    },
+    fetchImpl: async () =>
+      jsonResponse({
+        data: {
+          projects: {
+            edges: [
+              {
+                node: {
+                  id: "project-id",
+                  name: "magnify",
+                  workspace: {
+                    id: "workspace-id",
+                    name: "Tim Vučina's Projects",
+                  },
+                },
+              },
+            ],
+          },
+        },
+      }),
+  });
+
+  const result = await client.validateAccountToken();
+
+  assert.deepEqual(result, {
+    ok: true,
+    projectCountSampled: 1,
+    sampleProjects: [
+      {
+        id: "project-id",
+        name: "magnify",
+        workspace: "Tim Vučina's Projects",
+      },
+    ],
+  });
+});
+
 test("uses project access token for project token requests", async () => {
   const calls = [];
   const client = createRailwayClient({

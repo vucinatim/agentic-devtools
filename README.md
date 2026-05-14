@@ -6,6 +6,9 @@ Agentic Devtools is an MCP-first open-source package for developer platforms
 such as Railway, Namecheap, and npm. It is meant to be run directly by MCP hosts with
 `npx`, while still exposing package imports for custom automation.
 
+`npx` is the canonical runtime path. Global install is optional terminal
+convenience only.
+
 Most users should not install this into their app. Point your agent host at the
 tool you need:
 
@@ -85,8 +88,15 @@ Railway:
 }
 ```
 
-After `connect railway`, the same server config can omit `env` because the token
-is resolved from `~/.config/agentic-devtools/railway.json`.
+Use:
+
+- `RAILWAY_API_TOKEN` for Railway account tokens and workspace tokens
+- `RAILWAY_PROJECT_TOKEN` for Railway project tokens
+- `RAILWAY_PROJECT_ID` as an optional default project id for account/workspace
+  token flows
+
+After `connect railway`, the same server config can omit `env` because the
+stored token is resolved from `~/.config/agentic-devtools/railway.json`.
 
 Namecheap:
 
@@ -128,6 +138,14 @@ GitHub Actions Trusted Publishing over local write tokens. Use
 `setup-publishing npm` to run npm's official Trusted Publishing setup command
 through the package.
 
+Trusted Publishing notes:
+
+- npm currently documents Trusted Publishing for GitHub-hosted GitHub Actions,
+  GitLab.com shared runners, and CircleCI cloud
+- npm documents a minimum of Node `22.14.0` and npm CLI `11.5.1` for Trusted
+  Publishing
+- each npm package currently has one Trusted Publisher connection at a time
+
 ### Global CLI
 
 Useful if you use the tools often from a terminal:
@@ -138,6 +156,23 @@ agentic-devtools tools
 agentic-devtools connect railway
 agentic-devtools auth-status railway
 agentic-devtools mcp railway
+```
+
+If `agentic-devtools` is not found after global install, your shell is not
+exposing npm's global bin path. That is a shell setup issue, most commonly with
+Node version managers such as `fnm` or `nvm`, not a package runtime issue.
+
+Check:
+
+```bash
+npm prefix -g
+```
+
+Then make sure `<that-prefix>/bin` is on your `PATH`, or just use the canonical
+no-install path:
+
+```bash
+npx -y @vucinatim/agentic-devtools tools
 ```
 
 ### Project Dependency

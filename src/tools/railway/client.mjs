@@ -103,6 +103,20 @@ export const createRailwayClient = ({
     return data.me;
   };
 
+  const validateAccountToken = async () => {
+    requireAccountToken("validateRailwayAccountToken");
+    const projects = await listProjects({ first: 1, includeDeleted: false });
+    return {
+      ok: true,
+      projectCountSampled: projects.length,
+      sampleProjects: projects.map((project) => ({
+        id: project.id,
+        name: project.name,
+        workspace: project.workspace?.name ?? null,
+      })),
+    };
+  };
+
   const listProjects = async ({
     workspaceId = null,
     includeDeleted = false,
@@ -348,6 +362,7 @@ export const createRailwayClient = ({
     endpoint,
     getAuthStatus: () => getRailwayAuthStatus(env),
     getCurrentViewer,
+    validateAccountToken,
     listProjects,
     getProjectTokenContext,
     getProject,

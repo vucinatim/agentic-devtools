@@ -160,7 +160,7 @@ if (args[0] === "test-connection") {
     const result =
       client.auth.kind === "project"
         ? await client.getProjectTokenContext()
-        : await client.getCurrentViewer();
+        : await client.validateAccountToken();
     printJson({
       ok: true,
       tokenSource: client.auth.source,

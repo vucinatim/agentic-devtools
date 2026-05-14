@@ -91,16 +91,12 @@ const createServer = () => {
             };
           }
 
-          const viewer = await client.getCurrentViewer();
+          const validation = await client.validateAccountToken();
           return {
             ok: true,
             tokenSource: client.auth.source,
             tokenKind: client.auth.kind,
-            viewer: {
-              name: viewer.name,
-              email: viewer.email,
-              workspaceCount: viewer.workspaces.length,
-            },
+            validation,
           };
         }),
       ),
@@ -260,7 +256,7 @@ if (argv.includes("--test-connection")) {
   const result =
     client.auth.kind === "project"
       ? await client.getProjectTokenContext()
-      : await client.getCurrentViewer();
+      : await client.validateAccountToken();
   process.stdout.write(
     `${JSON.stringify(
       {

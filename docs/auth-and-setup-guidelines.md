@@ -9,6 +9,10 @@ The ideal user experience is:
 npx -y @vucinatim/agentic-devtools connect <tool>
 ```
 
+This is intentionally the primary path. A global install can be convenient for
+humans in a terminal, but it depends on the user's shell exposing npm's global
+bin directory and should not be treated as the required onboarding contract.
+
 After that, MCP host config should not need tokens inline:
 
 ```json
@@ -134,14 +138,26 @@ Recommended path:
    - `RAILWAY_API_TOKEN`
    - `RAILWAY_TOKEN`
    - `RAILWAY_PROJECT_ID`
+   - `RAILWAY_API_ENDPOINT`
 4. make env vars override stored config
 5. add OAuth once the app registration and callback flow are ready
 
 Token guidance:
 
-- project token: narrow project-scoped inspection
-- account/workspace token: account identity and project listing
+- account token: broadest scope across the user's resources and workspaces
+- workspace token: scoped to a single workspace, but still sent as bearer auth
+  through `RAILWAY_API_TOKEN` or `RAILWAY_TOKEN`
+- project token: scoped to a single environment and sent through
+  `RAILWAY_PROJECT_TOKEN`
 - do not ask for account token when a project token is enough
+
+Validation guidance:
+
+- do not assume every bearer token can call `me`
+- validate project tokens through a project-token-specific query
+- validate account and workspace tokens through project listing or other
+  workspace-compatible reads
+- keep identity-only queries such as `me` as separate optional capabilities
 
 ## Namecheap
 
@@ -195,6 +211,16 @@ Supported auth sources:
 For package publishing, prefer GitHub Actions Trusted Publishing through OIDC.
 The local npm tool may support publishing for controlled use cases, but real
 publishes must be explicit and confirmation-gated. Dry-run should be the default.
+
+Current npm Trusted Publishing guidance:
+
+- npm currently documents Trusted Publishing for GitHub-hosted GitHub Actions,
+  GitLab.com shared runners, and CircleCI cloud
+- self-hosted runners are not currently the documented path
+- npm currently documents Node `22.14.0+` and npm CLI `11.5.1+`
+- a package currently has one Trusted Publisher configuration at a time
+- after Trusted Publishing is verified, prefer npm's "disallow tokens" publish
+  setting for stronger security
 
 ## Hosted Connect Option
 

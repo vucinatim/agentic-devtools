@@ -32,6 +32,14 @@ permission so npm can verify the workflow identity.
 npm also publishes provenance attestations automatically when Trusted Publishing
 is used from supported CI.
 
+Current npm requirements and limits:
+
+- npm documents Trusted Publishing support for GitHub-hosted GitHub Actions,
+  GitLab.com shared runners, and CircleCI cloud
+- self-hosted runners are not currently the documented path
+- npm documents a minimum of Node `22.14.0` and npm CLI `11.5.1`
+- each package currently has one Trusted Publisher configuration at a time
+
 References:
 
 - <https://docs.npmjs.com/trusted-publishers>
@@ -171,6 +179,10 @@ npx -y npm@^11.10.0 trust github @vucinatim/agentic-devtools --repo vucinatim/ag
 
 This keeps the setup aligned with npm's beta Trusted Publishing flow and lets
 npm handle web/security-key two-factor authentication when required.
+
+After the Trusted Publisher is verified, npm recommends restricting token-based
+publishing access for the package so Trusted Publishing becomes the normal write
+path.
 
 For this repository it configures:
 

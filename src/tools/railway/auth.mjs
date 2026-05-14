@@ -339,7 +339,7 @@ export const runRailwayBrowserAuthFlow = async ({
             if (client.auth.kind === "project") {
               await client.getProjectTokenContext();
             } else {
-              await client.getCurrentViewer();
+              await client.validateAccountToken();
             }
           }
 
