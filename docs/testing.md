@@ -40,6 +40,10 @@ The publish workflow runs this after `npm publish`, so a release is only
 considered good after the registry-hosted package passes real installation and
 usage checks.
 
+There is also a manual GitHub Actions workflow, `Published Smoke`, which can
+re-run the same checks against any already-published version or against the
+current `latest` release without publishing again.
+
 ## Coverage Scope
 
 Coverage measures library code under `src/`, excluding:

@@ -1,0 +1,52 @@
+name: Published Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "npm package name"
+        required: true
+        default: "@vucinatim/agentic-devtools"
+        type: string
+      version:
+        description: "Published version to test. Leave empty to test latest."
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: published-smoke-${{ github.event.inputs.package }}-${{ github.event.inputs.version || 'latest' }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Ensure npm CLI is current
+        run: |
+          npm install -g npm@latest
+          node --version
+          npm --version
+
+      - name: Smoke test published package
+        env:
+          PACKAGE_NAME: ${{ github.event.inputs.package }}
+          PACKAGE_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ -n "${PACKAGE_VERSION}" ]; then
+            npm run test:published -- --package "${PACKAGE_NAME}" --version "${PACKAGE_VERSION}"
+          else
+            npm run test:published -- --package "${PACKAGE_NAME}"
+          fi
