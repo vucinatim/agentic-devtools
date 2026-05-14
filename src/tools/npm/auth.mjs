@@ -258,6 +258,7 @@ const renderNpmPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype
 </html>`;
 
 export const runNpmBrowserAuthFlow = async ({
+  onReady,
   validateConnection = true,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 } = {}) => {
@@ -344,7 +345,11 @@ export const runNpmBrowserAuthFlow = async ({
           throw new Error("Failed to bind local npm auth server.");
         }
 
-        await openBrowser(`http://127.0.0.1:${address.port}/`, {
+        const url = `http://127.0.0.1:${address.port}/`;
+        if (typeof onReady === "function") {
+          onReady({ url });
+        }
+        await openBrowser(url, {
           skipEnvVar: "NPM_SKIP_BROWSER_OPEN",
         });
       } catch (error) {

@@ -78,7 +78,13 @@ if (args[0] === "connect") {
   if (toolName === "npm") {
     const { runNpmBrowserAuthFlow } = await import("./tools/npm/auth.mjs");
     process.stderr.write("Opening npm browser setup flow...\n");
-    printJson(await runNpmBrowserAuthFlow());
+    printJson(
+      await runNpmBrowserAuthFlow({
+        onReady: ({ url }) => {
+          process.stderr.write(`npm setup URL: ${url}\n`);
+        },
+      }),
+    );
     process.exit(0);
   }
   throw new Error("connect expects one of: namecheap, railway, npm");

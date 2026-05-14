@@ -311,7 +311,11 @@ if (argv.includes("--auth-status")) {
 
 if (argv.includes("--connect")) {
   process.stdout.write("Opening npm browser setup flow...\n");
-  const result = await runNpmBrowserAuthFlow();
+  const result = await runNpmBrowserAuthFlow({
+    onReady: ({ url }) => {
+      process.stdout.write(`npm setup URL: ${url}\n`);
+    },
+  });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   process.exit(0);
 }
