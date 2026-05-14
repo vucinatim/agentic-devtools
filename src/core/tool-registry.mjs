@@ -2,17 +2,17 @@ export const tools = {
   namecheap: {
     name: "namecheap",
     description: "Inspect and manage Namecheap domains and DNS.",
-    mcpModule: "../tools/namecheap/mcp.mjs",
+    mcpModule: "./tools/namecheap/mcp.mjs",
   },
   railway: {
     name: "railway",
     description: "Inspect Railway projects, environments, and deployments.",
-    mcpModule: "../tools/railway/mcp.mjs",
+    mcpModule: "./tools/railway/mcp.mjs",
   },
   npm: {
     name: "npm",
     description: "Inspect npm packages, auth, tokens, and publishing setup.",
-    mcpModule: "../tools/npm/mcp.mjs",
+    mcpModule: "./tools/npm/mcp.mjs",
   },
 };
 

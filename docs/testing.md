@@ -12,6 +12,7 @@ The test suite should validate three layers:
 
 ```bash
 npm test
+npm run test:published -- --version 0.1.1
 npm run test:namecheap
 npm run test:railway
 npm run coverage
@@ -24,6 +25,20 @@ npm run check
 2. Vitest with coverage thresholds
 3. production dependency audit
 4. package dry-run validation
+
+## Published Package Smoke Tests
+
+`npm run test:published -- --version <published-version>` validates the actual
+npm artifact after release. It exercises:
+
+- direct `npx` execution
+- simulated global CLI install with `npm install -g --prefix`
+- project dependency install and ESM imports
+- MCP entrypoint help for each public tool
+
+The publish workflow runs this after `npm publish`, so a release is only
+considered good after the registry-hosted package passes real installation and
+usage checks.
 
 ## Coverage Scope
 

@@ -1,6 +1,6 @@
 {
   "name": "@vucinatim/agentic-devtools",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "description": "MCP-first devtools for AI agents.",
   "type": "module",
@@ -59,6 +59,7 @@
     "audit": "npm audit --omit=dev",
     "pack:dry": "npm pack --dry-run",
     "test": "vitest run",
+    "test:published": "node scripts/test-published-package.mjs",
     "test:watch": "vitest",
     "test:namecheap": "vitest run tests/tools/namecheap",
     "test:railway": "vitest run tests/tools/railway",

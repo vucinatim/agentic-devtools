@@ -16,6 +16,9 @@ test("getTool returns registered tools", () => {
   assert.equal(getTool("namecheap").name, "namecheap");
   assert.equal(getTool("railway").name, "railway");
   assert.equal(getTool("npm").name, "npm");
+  assert.equal(getTool("namecheap").mcpModule, "./tools/namecheap/mcp.mjs");
+  assert.equal(getTool("railway").mcpModule, "./tools/railway/mcp.mjs");
+  assert.equal(getTool("npm").mcpModule, "./tools/npm/mcp.mjs");
   assert.deepEqual(
     listTools().map((tool) => tool.name),
     ["namecheap", "railway", "npm"],

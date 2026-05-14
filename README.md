@@ -175,6 +175,7 @@ Current validation commands:
 ```bash
 npm run build
 npm test
+npm run test:published -- --version <published-version>
 npm run test:namecheap
 npm run test:railway
 npm run coverage
