@@ -159,6 +159,19 @@ Validation guidance:
   workspace-compatible reads
 - keep identity-only queries such as `me` as separate optional capabilities
 
+Current Railway management scope should cover the documented public API for:
+
+- projects and project members
+- environments
+- services and service instances
+- deployments
+- variables
+- service domains and custom domains
+- volumes
+
+Do not claim parity for dashboard-only or undocumented organization surfaces
+until Railway documents them as stable public API.
+
 ## Namecheap
 
 Namecheap is Tier 3.

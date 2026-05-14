@@ -138,6 +138,21 @@ GitHub Actions Trusted Publishing over local write tokens. Use
 `setup-publishing npm` to run npm's official Trusted Publishing setup command
 through the package.
 
+### Railway Coverage
+
+The Railway tool now targets parity with Railway's documented public API for:
+
+- projects and project members
+- environments
+- services and service instances
+- deployments
+- variables
+- Railway-managed and custom domains
+- volumes
+
+This does not currently claim parity for undocumented dashboard-only concepts
+such as canvas grouping internals.
+
 Trusted Publishing notes:
 
 - npm currently documents Trusted Publishing for GitHub-hosted GitHub Actions,

@@ -157,6 +157,23 @@ Validation behavior:
 - identity-style `me` queries are not treated as the compatibility baseline for
   all bearer tokens
 
+Railway capability coverage:
+
+- read and mutate projects
+- list project members
+- read and mutate environments
+- read and mutate services
+- read and mutate service instance settings and limits
+- deploy and redeploy service instances
+- inspect deployments and list deployment history
+- upsert and delete variables
+- create, update, and delete Railway-managed and custom domains
+- create and delete volumes
+
+Not currently included as a supported public contract:
+
+- undocumented dashboard canvas/group organization internals
+
 Namecheap supports:
 
 - guided local setup through `agentic-devtools connect namecheap`

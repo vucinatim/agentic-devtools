@@ -213,9 +213,568 @@ test("surfaces Railway GraphQL errors", async () => {
   );
 });
 
+test("manages Railway project lifecycle mutations with compacted inputs", async () => {
+  const calls = [];
+  const client = createRailwayClient({
+    env: {
+      RAILWAY_API_TOKEN: "account-token",
+    },
+    fetchImpl: async (_url, init) => {
+      calls.push(parseGraphqlRequest(init));
+      return jsonResponse({
+        data: {
+          projectCreate: {
+            id: "project-id",
+            name: "Magnify Core",
+            description: "media control plane",
+            workspace: { id: "workspace-id", name: "Workspace" },
+          },
+          projectUpdate: {
+            id: "project-id",
+            name: "Magnify Core",
+            description: "updated",
+            prDeploys: true,
+            focusedPrEnvironments: false,
+            botPrEnvironments: true,
+            isPublic: false,
+          },
+          projectDelete: true,
+          projectTransfer: true,
+        },
+      });
+    },
+  });
+
+  const created = await client.createProject({
+    name: "Magnify Core",
+    description: "media control plane",
+    workspaceId: "workspace-id",
+    isPublic: undefined,
+  });
+  const updated = await client.updateProject({
+    projectId: "project-id",
+    description: "updated",
+    botPrEnvironments: true,
+    name: undefined,
+  });
+  const deleted = await client.deleteProject("project-id");
+  const transferred = await client.transferProject({
+    projectId: "project-id",
+    workspaceId: "workspace-2",
+  });
+
+  assert.equal(created.id, "project-id");
+  assert.equal(updated.description, "updated");
+  assert.deepEqual(deleted, { deleted: true, projectId: "project-id" });
+  assert.deepEqual(transferred, {
+    transferred: true,
+    projectId: "project-id",
+    workspaceId: "workspace-2",
+  });
+
+  assert.match(calls[0].query, /projectCreate/);
+  assert.deepEqual(calls[0].variables, {
+    input: {
+      name: "Magnify Core",
+      description: "media control plane",
+      workspaceId: "workspace-id",
+    },
+  });
+  assert.match(calls[1].query, /projectUpdate/);
+  assert.deepEqual(calls[1].variables, {
+    id: "project-id",
+    input: {
+      description: "updated",
+      botPrEnvironments: true,
+    },
+  });
+  assert.deepEqual(calls[2].variables, { id: "project-id" });
+  assert.deepEqual(calls[3].variables, {
+    projectId: "project-id",
+    input: {
+      workspaceId: "workspace-2",
+    },
+  });
+});
+
+test("manages Railway services, deployments, and limits", async () => {
+  const calls = [];
+  const client = createRailwayClient({
+    env: {
+      RAILWAY_PROJECT_TOKEN: "project-token",
+    },
+    fetchImpl: async (_url, init) => {
+      calls.push(parseGraphqlRequest(init));
+      return jsonResponse({
+        data: {
+          serviceCreate: {
+            id: "service-id",
+            name: "api",
+            icon: "docker",
+            projectId: "project-id",
+          },
+          serviceUpdate: {
+            id: "service-id",
+            name: "api-renamed",
+            icon: "postgresql",
+            projectId: "project-id",
+          },
+          serviceConnect: {
+            id: "service-id",
+            name: "api-renamed",
+            icon: "postgresql",
+            projectId: "project-id",
+          },
+          serviceDisconnect: true,
+          serviceDelete: true,
+          serviceInstanceUpdate: true,
+          serviceInstanceDeploy: {
+            id: "deployment-id",
+            status: "BUILDING",
+            environmentId: "env-id",
+            serviceId: "service-id",
+            url: null,
+            staticUrl: null,
+          },
+          serviceInstanceRedeploy: {
+            id: "deployment-id-2",
+            status: "QUEUED",
+            environmentId: "env-id",
+            serviceId: "service-id",
+            url: null,
+            staticUrl: null,
+          },
+          serviceInstanceLimitsUpdate: true,
+        },
+      });
+    },
+  });
+
+  await client.createService({
+    projectId: "project-id",
+    name: "api",
+    icon: "docker",
+    source: { repo: "vucinatim/magnify-core" },
+    branch: undefined,
+  });
+  await client.updateService({
+    serviceId: "service-id",
+    name: "api-renamed",
+    icon: "postgresql",
+  });
+  await client.connectService({
+    serviceId: "service-id",
+    repo: "vucinatim/magnify-core",
+    branch: "main",
+    image: undefined,
+  });
+  assert.deepEqual(await client.disconnectService("service-id"), {
+    disconnected: true,
+    serviceId: "service-id",
+  });
+  assert.deepEqual(
+    await client.deleteService({ serviceId: "service-id", environmentId: "env-id" }),
+    {
+      deleted: true,
+      serviceId: "service-id",
+      environmentId: "env-id",
+    },
+  );
+  assert.deepEqual(
+    await client.updateServiceInstance({
+      serviceId: "service-id",
+      environmentId: "env-id",
+      rootDirectory: "apps/api",
+      watchPatterns: ["apps/api/**"],
+      startCommand: undefined,
+    }),
+    {
+      updated: true,
+      serviceId: "service-id",
+      environmentId: "env-id",
+    },
+  );
+  assert.equal(
+    (await client.deployService({
+      serviceId: "service-id",
+      environmentId: "env-id",
+      latestCommit: true,
+    })).id,
+    "deployment-id",
+  );
+  assert.equal(
+    (await client.redeployService({
+      serviceId: "service-id",
+      environmentId: "env-id",
+    })).id,
+    "deployment-id-2",
+  );
+  assert.deepEqual(
+    await client.updateServiceInstanceLimits({
+      serviceId: "service-id",
+      environmentId: "env-id",
+      memoryGB: 8,
+      vCPUs: 4,
+    }),
+    {
+      updated: true,
+      serviceId: "service-id",
+      environmentId: "env-id",
+      memoryGB: 8,
+      vCPUs: 4,
+    },
+  );
+
+  assert.match(calls[0].query, /serviceCreate/);
+  assert.deepEqual(calls[0].variables, {
+    input: {
+      projectId: "project-id",
+      name: "api",
+      icon: "docker",
+      source: { repo: "vucinatim/magnify-core" },
+    },
+  });
+  assert.deepEqual(calls[2].variables, {
+    id: "service-id",
+    input: {
+      repo: "vucinatim/magnify-core",
+      branch: "main",
+    },
+  });
+  assert.deepEqual(calls[5].variables, {
+    serviceId: "service-id",
+    environmentId: "env-id",
+    input: {
+      rootDirectory: "apps/api",
+      watchPatterns: ["apps/api/**"],
+    },
+  });
+  assert.deepEqual(calls[8].variables, {
+    input: {
+      serviceId: "service-id",
+      environmentId: "env-id",
+      memoryGB: 8,
+      vCPUs: 4,
+    },
+  });
+});
+
+test("manages Railway environments, variables, domains, volumes, and deployment queries", async () => {
+  const calls = [];
+  const client = createRailwayClient({
+    env: {
+      RAILWAY_API_TOKEN: "account-token",
+    },
+    fetchImpl: async (_url, init) => {
+      calls.push(parseGraphqlRequest(init));
+      return jsonResponse({
+        data: {
+          projectMembers: [
+            {
+              id: "member-id",
+              role: "ADMIN",
+              user: { name: "Tim", email: "tim@example.com" },
+            },
+          ],
+          service: {
+            id: "service-id",
+            name: "api",
+            icon: "docker",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            deletedAt: null,
+            featureFlags: [],
+            project: { id: "project-id", name: "Magnify" },
+          },
+          serviceInstance: {
+            id: "instance-id",
+            serviceId: "service-id",
+            serviceName: "api",
+            environmentId: "env-id",
+            rootDirectory: "apps/api",
+            railwayConfigFile: "railway.json",
+            buildCommand: "pnpm build",
+            startCommand: "pnpm start",
+            healthcheckPath: "/health",
+            cronSchedule: null,
+            latestDeployment: null,
+            domains: {
+              serviceDomains: [{ id: "sd-1", domain: "api.up.railway.app" }],
+              customDomains: [{ id: "cd-1", domain: "api.example.com" }],
+            },
+          },
+          serviceInstanceLimits: { memoryGB: 8, vCPUs: 4 },
+          deployment: {
+            id: "deployment-id",
+            status: "SUCCESS",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            statusUpdatedAt: "2026-01-01T00:00:00.000Z",
+            canRedeploy: true,
+            canRollback: false,
+            deploymentStopped: false,
+            environmentId: "env-id",
+            projectId: "project-id",
+            serviceId: "service-id",
+            url: "https://api.up.railway.app",
+            staticUrl: null,
+            service: { id: "service-id", name: "api" },
+            environment: { id: "env-id", name: "production" },
+          },
+          deployments: {
+            edges: [
+              {
+                node: {
+                  id: "deployment-id",
+                  status: "SUCCESS",
+                  createdAt: "2026-01-01T00:00:00.000Z",
+                  updatedAt: "2026-01-01T00:00:00.000Z",
+                  environmentId: "env-id",
+                  projectId: "project-id",
+                  serviceId: "service-id",
+                  url: "https://api.up.railway.app",
+                  staticUrl: null,
+                },
+              },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+              startCursor: "start",
+              endCursor: "end",
+            },
+          },
+          environmentCreate: {
+            id: "env-id",
+            name: "preview",
+            isEphemeral: true,
+            projectId: "project-id",
+          },
+          environmentDelete: true,
+          variableUpsert: true,
+          variableDelete: true,
+          serviceDomainCreate: {
+            id: "sd-1",
+            domain: "api.up.railway.app",
+          },
+          serviceDomainUpdate: true,
+          serviceDomainDelete: true,
+          customDomainCreate: {
+            id: "cd-1",
+            domain: "api.example.com",
+          },
+          customDomainUpdate: true,
+          customDomainDelete: true,
+          volumeCreate: {
+            id: "volume-id",
+          },
+          volumeDelete: true,
+        },
+      });
+    },
+  });
+
+  assert.equal((await client.getProjectMembers("project-id"))[0].role, "ADMIN");
+  assert.equal((await client.getService("service-id")).projectName, "Magnify");
+  assert.equal(
+    (await client.getServiceInstance({
+      serviceId: "service-id",
+      environmentId: "env-id",
+    })).domains.customDomains[0].domain,
+    "api.example.com",
+  );
+  assert.deepEqual(
+    await client.getServiceInstanceLimits({
+      serviceId: "service-id",
+      environmentId: "env-id",
+    }),
+    { memoryGB: 8, vCPUs: 4 },
+  );
+  assert.equal((await client.getDeployment("deployment-id")).serviceName, "api");
+  assert.deepEqual(
+    await client.listDeployments({
+      projectId: "project-id",
+      environmentId: "env-id",
+      first: 10,
+    }),
+    {
+      deployments: [
+        {
+          id: "deployment-id",
+          status: "SUCCESS",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          environmentId: "env-id",
+          projectId: "project-id",
+          serviceId: "service-id",
+          url: "https://api.up.railway.app",
+          staticUrl: null,
+        },
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: "start",
+        endCursor: "end",
+      },
+    },
+  );
+  assert.equal(
+    (
+      await client.createEnvironment({
+        projectId: "project-id",
+        name: "preview",
+        ephemeral: true,
+      })
+    ).name,
+    "preview",
+  );
+  assert.deepEqual(await client.deleteEnvironment("env-id"), {
+    deleted: true,
+    environmentId: "env-id",
+  });
+  assert.deepEqual(
+    await client.upsertVariable({
+      projectId: "project-id",
+      environmentId: "env-id",
+      serviceId: "service-id",
+      name: "API_URL",
+      value: "https://api.example.com",
+      skipDeploys: true,
+    }),
+    {
+      updated: true,
+      name: "API_URL",
+      environmentId: "env-id",
+      serviceId: "service-id",
+      projectId: "project-id",
+    },
+  );
+  assert.deepEqual(
+    await client.deleteVariable({
+      projectId: "project-id",
+      environmentId: "env-id",
+      serviceId: "service-id",
+      name: "API_URL",
+    }),
+    {
+      deleted: true,
+      name: "API_URL",
+      environmentId: "env-id",
+      serviceId: "service-id",
+      projectId: "project-id",
+    },
+  );
+  assert.equal(
+    (
+      await client.createServiceDomain({
+        serviceId: "service-id",
+        environmentId: "env-id",
+      })
+    ).domain,
+    "api.up.railway.app",
+  );
+  assert.deepEqual(
+    await client.updateServiceDomain({
+      serviceDomainId: "sd-1",
+      serviceId: "service-id",
+      environmentId: "env-id",
+      domain: "api.up.railway.app",
+      targetPort: 8080,
+    }),
+    {
+      updated: true,
+      serviceDomainId: "sd-1",
+    },
+  );
+  assert.deepEqual(await client.deleteServiceDomain("sd-1"), {
+    deleted: true,
+    serviceDomainId: "sd-1",
+  });
+  assert.equal(
+    (
+      await client.createCustomDomain({
+        projectId: "project-id",
+        environmentId: "env-id",
+        serviceId: "service-id",
+        domain: "api.example.com",
+      })
+    ).id,
+    "cd-1",
+  );
+  assert.deepEqual(
+    await client.updateCustomDomain({
+      customDomainId: "cd-1",
+      environmentId: "env-id",
+      targetPort: 3000,
+    }),
+    {
+      updated: true,
+      customDomainId: "cd-1",
+    },
+  );
+  assert.deepEqual(await client.deleteCustomDomain("cd-1"), {
+    deleted: true,
+    customDomainId: "cd-1",
+  });
+  assert.equal(
+    (
+      await client.createVolume({
+        projectId: "project-id",
+        environmentId: "env-id",
+        serviceId: "service-id",
+        mountPath: "/data",
+        region: "us-west1",
+      })
+    ).id,
+    "volume-id",
+  );
+  assert.deepEqual(await client.deleteVolume("volume-id"), {
+    deleted: true,
+    volumeId: "volume-id",
+  });
+
+  assert.deepEqual(calls[5].variables, {
+    input: {
+      projectId: "project-id",
+      environmentId: "env-id",
+    },
+    first: 10,
+    after: null,
+    before: null,
+    last: null,
+  });
+  assert.deepEqual(calls[8].variables, {
+    input: {
+      projectId: "project-id",
+      environmentId: "env-id",
+      serviceId: "service-id",
+      name: "API_URL",
+      value: "https://api.example.com",
+      skipDeploys: true,
+    },
+  });
+  assert.deepEqual(calls[14].variables, {
+    id: "cd-1",
+    environmentId: "env-id",
+    targetPort: 3000,
+  });
+  assert.deepEqual(calls[16].variables, {
+    input: {
+      projectId: "project-id",
+      environmentId: "env-id",
+      serviceId: "service-id",
+      mountPath: "/data",
+      region: "us-west1",
+    },
+  });
+});
+
 const jsonResponse = (payload, { ok = true, status = 200 } = {}) => ({
   ok,
   status,
   json: async () => payload,
   text: async () => JSON.stringify(payload),
 });
+
+const parseGraphqlRequest = (init) => JSON.parse(init.body);

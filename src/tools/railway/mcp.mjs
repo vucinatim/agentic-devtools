@@ -24,7 +24,8 @@ Optional environment variables:
   RAILWAY_PROJECT_ID
   RAILWAY_API_ENDPOINT
 
-Project tokens can inspect a single project. Account tokens can inspect account identity and list projects.
+Project tokens can manage resources scoped to the attached project environment.
+Account and workspace tokens can inspect and manage broader Railway resources.
 
 If env vars are not provided, use the connectRailway tool to open the browser-based setup flow and save a local Railway token.
 `;
@@ -47,7 +48,7 @@ const createServer = () => {
     },
     {
       instructions:
-        "Use these tools for read-only Railway project, environment, service, domain, and deployment inspection. Do not attempt deployment or variable mutation through this plugin.",
+        "Use these tools to inspect and manage Railway projects, environments, services, domains, variables, deployments, and volumes through the documented public API. Prefer read tools first, then use targeted write tools. Delete tools are destructive and should be used deliberately.",
     },
   );
 
@@ -157,6 +158,21 @@ const createServer = () => {
   );
 
   server.registerTool(
+    "listRailwayProjectMembers",
+    {
+      description:
+        "List members of a Railway project. Requires an account or workspace token.",
+      inputSchema: {
+        projectId: z.string().min(1).optional(),
+      },
+    },
+    async ({ projectId } = {}) =>
+      createToolResult(
+        await withClient((client) => client.getProjectMembers(projectId)),
+      ),
+  );
+
+  server.registerTool(
     "inspectRailwayProjectToken",
     {
       description:
@@ -181,6 +197,74 @@ const createServer = () => {
       createToolResult(
         await withClient((client) => client.getProject(projectId)),
       ),
+  );
+
+  server.registerTool(
+    "createRailwayProject",
+    {
+      description:
+        "Create a Railway project. Requires an account or workspace token.",
+      inputSchema: {
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+        workspaceId: z.string().min(1).optional(),
+        defaultEnvironmentName: z.string().min(1).optional(),
+        isMonorepo: z.boolean().optional(),
+        isPublic: z.boolean().optional(),
+        prDeploys: z.boolean().optional(),
+        runtime: z.string().min(1).optional(),
+        repo: z.unknown().optional(),
+      },
+    },
+    async (args = {}) =>
+      createToolResult(await withClient((client) => client.createProject(args))),
+  );
+
+  server.registerTool(
+    "updateRailwayProject",
+    {
+      description:
+        "Update Railway project settings such as name, description, or PR environment behavior.",
+      inputSchema: {
+        projectId: z.string().min(1).optional(),
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+        baseEnvironmentId: z.string().min(1).optional(),
+        botPrEnvironments: z.boolean().optional(),
+        focusedPrEnvironments: z.boolean().optional(),
+        isPublic: z.boolean().optional(),
+        prDeploys: z.boolean().optional(),
+      },
+    },
+    async (args = {}) =>
+      createToolResult(await withClient((client) => client.updateProject(args))),
+  );
+
+  server.registerTool(
+    "deleteRailwayProject",
+    {
+      description:
+        "Delete a Railway project. Destructive. Requires an account or workspace token.",
+      inputSchema: {
+        projectId: z.string().min(1).optional(),
+      },
+    },
+    async ({ projectId } = {}) =>
+      createToolResult(await withClient((client) => client.deleteProject(projectId))),
+  );
+
+  server.registerTool(
+    "transferRailwayProject",
+    {
+      description:
+        "Transfer a Railway project to another workspace. Requires an account or workspace token.",
+      inputSchema: {
+        projectId: z.string().min(1).optional(),
+        workspaceId: z.string().min(1),
+      },
+    },
+    async (args) =>
+      createToolResult(await withClient((client) => client.transferProject(args))),
   );
 
   server.registerTool(
@@ -212,6 +296,452 @@ const createServer = () => {
       createToolResult(
         await withClient((client) => client.getEnvironment(environmentId)),
       ),
+  );
+
+  server.registerTool(
+    "createRailwayEnvironment",
+    {
+      description:
+        "Create a Railway environment inside a project.",
+      inputSchema: {
+        projectId: z.string().min(1),
+        name: z.string().min(1),
+        ephemeral: z.boolean().optional(),
+        sourceEnvironmentId: z.string().min(1).optional(),
+        skipInitialDeploys: z.boolean().optional(),
+        stageInitialChanges: z.boolean().optional(),
+        applyChangesInBackground: z.boolean().optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(await withClient((client) => client.createEnvironment(args))),
+  );
+
+  server.registerTool(
+    "deleteRailwayEnvironment",
+    {
+      description:
+        "Delete a Railway environment. Destructive.",
+      inputSchema: {
+        environmentId: z.string().min(1),
+      },
+    },
+    async ({ environmentId }) =>
+      createToolResult(
+        await withClient((client) => client.deleteEnvironment(environmentId)),
+      ),
+  );
+
+  server.registerTool(
+    "getRailwayService",
+    {
+      description: "Inspect one Railway service.",
+      inputSchema: {
+        serviceId: z.string().min(1),
+      },
+    },
+    async ({ serviceId }) =>
+      createToolResult(await withClient((client) => client.getService(serviceId))),
+  );
+
+  server.registerTool(
+    "getRailwayServiceInstance",
+    {
+      description:
+        "Inspect one Railway service instance in a specific environment.",
+      inputSchema: {
+        serviceId: z.string().min(1),
+        environmentId: z.string().min(1),
+      },
+    },
+    async (args) =>
+      createToolResult(
+        await withClient((client) => client.getServiceInstance(args)),
+      ),
+  );
+
+  server.registerTool(
+    "getRailwayServiceInstanceLimits",
+    {
+      description:
+        "Get resource limits for a Railway service instance.",
+      inputSchema: {
+        serviceId: z.string().min(1),
+        environmentId: z.string().min(1),
+      },
+    },
+    async (args) =>
+      createToolResult(
+        await withClient((client) => client.getServiceInstanceLimits(args)),
+      ),
+  );
+
+  server.registerTool(
+    "createRailwayService",
+    {
+      description:
+        "Create a Railway service from a repo, image, template, or as an empty service.",
+      inputSchema: {
+        projectId: z.string().min(1),
+        environmentId: z.string().min(1).optional(),
+        name: z.string().min(1).optional(),
+        icon: z.string().min(1).optional(),
+        branch: z.string().min(1).optional(),
+        templateId: z.string().min(1).optional(),
+        templateServiceId: z.string().min(1).optional(),
+        source: z.unknown().optional(),
+        registryCredentials: z.unknown().optional(),
+        variables: z.unknown().optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(await withClient((client) => client.createService(args))),
+  );
+
+  server.registerTool(
+    "updateRailwayService",
+    {
+      description:
+        "Update a Railway service name or icon.",
+      inputSchema: {
+        serviceId: z.string().min(1),
+        name: z.string().min(1).optional(),
+        icon: z.string().min(1).optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(await withClient((client) => client.updateService(args))),
+  );
+
+  server.registerTool(
+    "connectRailwayService",
+    {
+      description:
+        "Connect an existing Railway service to a repo or image source.",
+      inputSchema: {
+        serviceId: z.string().min(1),
+        repo: z.string().min(1).optional(),
+        image: z.string().min(1).optional(),
+        branch: z.string().min(1).optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(await withClient((client) => client.connectService(args))),
+  );
+
+  server.registerTool(
+    "disconnectRailwayService",
+    {
+      description:
+        "Disconnect a Railway service from its current source.",
+      inputSchema: {
+        serviceId: z.string().min(1),
+      },
+    },
+    async ({ serviceId }) =>
+      createToolResult(
+        await withClient((client) => client.disconnectService(serviceId)),
+      ),
+  );
+
+  server.registerTool(
+    "deleteRailwayService",
+    {
+      description:
+        "Delete a Railway service. Destructive.",
+      inputSchema: {
+        serviceId: z.string().min(1),
+        environmentId: z.string().min(1).optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(await withClient((client) => client.deleteService(args))),
+  );
+
+  server.registerTool(
+    "updateRailwayServiceInstance",
+    {
+      description:
+        "Update build, deploy, region, healthcheck, cron, or source settings for a Railway service instance.",
+      inputSchema: {
+        serviceId: z.string().min(1),
+        environmentId: z.string().min(1).optional(),
+        buildCommand: z.string().optional(),
+        builder: z.string().min(1).optional(),
+        cronSchedule: z.string().optional(),
+        dockerfilePath: z.string().optional(),
+        drainingSeconds: z.number().int().min(0).optional(),
+        healthcheckPath: z.string().optional(),
+        healthcheckTimeout: z.number().int().min(0).optional(),
+        ipv6EgressEnabled: z.boolean().optional(),
+        multiRegionConfig: z.unknown().optional(),
+        nixpacksPlan: z.unknown().optional(),
+        numReplicas: z.number().int().min(0).optional(),
+        overlapSeconds: z.number().int().min(0).optional(),
+        preDeployCommand: z.array(z.string()).optional(),
+        railwayConfigFile: z.string().optional(),
+        region: z.string().optional(),
+        registryCredentials: z.unknown().optional(),
+        restartPolicyMaxRetries: z.number().int().min(0).optional(),
+        restartPolicyType: z.string().min(1).optional(),
+        rootDirectory: z.string().optional(),
+        sleepApplication: z.boolean().optional(),
+        source: z.unknown().optional(),
+        startCommand: z.string().optional(),
+        watchPatterns: z.array(z.string()).optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(
+        await withClient((client) => client.updateServiceInstance(args)),
+      ),
+  );
+
+  server.registerTool(
+    "deployRailwayService",
+    {
+      description:
+        "Trigger a Railway deployment for a service instance.",
+      inputSchema: {
+        serviceId: z.string().min(1),
+        environmentId: z.string().min(1),
+        commitSha: z.string().min(1).optional(),
+        latestCommit: z.boolean().optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(await withClient((client) => client.deployService(args))),
+  );
+
+  server.registerTool(
+    "redeployRailwayService",
+    {
+      description:
+        "Redeploy the latest Railway deployment for a service instance.",
+      inputSchema: {
+        serviceId: z.string().min(1),
+        environmentId: z.string().min(1),
+      },
+    },
+    async (args) =>
+      createToolResult(await withClient((client) => client.redeployService(args))),
+  );
+
+  server.registerTool(
+    "updateRailwayServiceInstanceLimits",
+    {
+      description:
+        "Update vCPU or memory limits for a Railway service instance.",
+      inputSchema: {
+        serviceId: z.string().min(1),
+        environmentId: z.string().min(1),
+        memoryGB: z.number().positive().optional(),
+        vCPUs: z.number().positive().optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(
+        await withClient((client) => client.updateServiceInstanceLimits(args)),
+      ),
+  );
+
+  server.registerTool(
+    "getRailwayDeployment",
+    {
+      description: "Inspect one Railway deployment.",
+      inputSchema: {
+        deploymentId: z.string().min(1),
+      },
+    },
+    async ({ deploymentId }) =>
+      createToolResult(
+        await withClient((client) => client.getDeployment(deploymentId)),
+      ),
+  );
+
+  server.registerTool(
+    "listRailwayDeployments",
+    {
+      description:
+        "List Railway deployments for a project, environment, or service.",
+      inputSchema: {
+        projectId: z.string().min(1).optional(),
+        environmentId: z.string().min(1).optional(),
+        serviceId: z.string().min(1).optional(),
+        first: z.number().int().min(1).max(100).optional(),
+        after: z.string().min(1).optional(),
+        before: z.string().min(1).optional(),
+        last: z.number().int().min(1).max(100).optional(),
+      },
+    },
+    async (args = {}) =>
+      createToolResult(await withClient((client) => client.listDeployments(args))),
+  );
+
+  server.registerTool(
+    "upsertRailwayVariable",
+    {
+      description:
+        "Create or update a Railway variable.",
+      inputSchema: {
+        projectId: z.string().min(1),
+        environmentId: z.string().min(1),
+        name: z.string().min(1),
+        value: z.string(),
+        serviceId: z.string().min(1).optional(),
+        skipDeploys: z.boolean().optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(await withClient((client) => client.upsertVariable(args))),
+  );
+
+  server.registerTool(
+    "deleteRailwayVariable",
+    {
+      description:
+        "Delete a Railway variable.",
+      inputSchema: {
+        projectId: z.string().min(1),
+        environmentId: z.string().min(1),
+        name: z.string().min(1),
+        serviceId: z.string().min(1).optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(await withClient((client) => client.deleteVariable(args))),
+  );
+
+  server.registerTool(
+    "createRailwayServiceDomain",
+    {
+      description:
+        "Create a Railway-managed service domain.",
+      inputSchema: {
+        serviceId: z.string().min(1),
+        environmentId: z.string().min(1),
+        targetPort: z.number().int().min(1).optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(
+        await withClient((client) => client.createServiceDomain(args)),
+      ),
+  );
+
+  server.registerTool(
+    "updateRailwayServiceDomain",
+    {
+      description:
+        "Update a Railway-managed service domain target port or domain binding.",
+      inputSchema: {
+        serviceDomainId: z.string().min(1),
+        serviceId: z.string().min(1),
+        environmentId: z.string().min(1),
+        domain: z.string().min(1),
+        targetPort: z.number().int().min(1).optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(
+        await withClient((client) => client.updateServiceDomain(args)),
+      ),
+  );
+
+  server.registerTool(
+    "deleteRailwayServiceDomain",
+    {
+      description:
+        "Delete a Railway-managed service domain.",
+      inputSchema: {
+        serviceDomainId: z.string().min(1),
+      },
+    },
+    async ({ serviceDomainId }) =>
+      createToolResult(
+        await withClient((client) => client.deleteServiceDomain(serviceDomainId)),
+      ),
+  );
+
+  server.registerTool(
+    "createRailwayCustomDomain",
+    {
+      description:
+        "Add a custom domain to a Railway service.",
+      inputSchema: {
+        projectId: z.string().min(1),
+        environmentId: z.string().min(1),
+        serviceId: z.string().min(1),
+        domain: z.string().min(1),
+        targetPort: z.number().int().min(1).optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(
+        await withClient((client) => client.createCustomDomain(args)),
+      ),
+  );
+
+  server.registerTool(
+    "updateRailwayCustomDomain",
+    {
+      description:
+        "Update a custom Railway domain target port.",
+      inputSchema: {
+        customDomainId: z.string().min(1),
+        environmentId: z.string().min(1),
+        targetPort: z.number().int().min(1).optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(
+        await withClient((client) => client.updateCustomDomain(args)),
+      ),
+  );
+
+  server.registerTool(
+    "deleteRailwayCustomDomain",
+    {
+      description:
+        "Delete a custom Railway domain.",
+      inputSchema: {
+        customDomainId: z.string().min(1),
+      },
+    },
+    async ({ customDomainId }) =>
+      createToolResult(
+        await withClient((client) => client.deleteCustomDomain(customDomainId)),
+      ),
+  );
+
+  server.registerTool(
+    "createRailwayVolume",
+    {
+      description:
+        "Create a Railway volume.",
+      inputSchema: {
+        projectId: z.string().min(1),
+        mountPath: z.string().min(1),
+        environmentId: z.string().min(1).optional(),
+        serviceId: z.string().min(1).optional(),
+        region: z.string().min(1).optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(await withClient((client) => client.createVolume(args))),
+  );
+
+  server.registerTool(
+    "deleteRailwayVolume",
+    {
+      description:
+        "Delete a Railway volume. Destructive.",
+      inputSchema: {
+        volumeId: z.string().min(1),
+      },
+    },
+    async ({ volumeId }) =>
+      createToolResult(await withClient((client) => client.deleteVolume(volumeId))),
   );
 
   server.registerTool(

@@ -86,6 +86,16 @@ export const createRailwayClient = ({
     );
   };
 
+  const requireResolvedProjectId = async (projectId, operation) => {
+    try {
+      return await resolveProjectId(projectId);
+    } catch (error) {
+      throw new RailwayApiError(
+        error instanceof Error ? error.message : `${operation} requires a Railway project id.`,
+      );
+    }
+  };
+
   const getCurrentViewer = async () => {
     requireAccountToken("getRailwayViewer");
     const data = await request(`
@@ -231,6 +241,27 @@ export const createRailwayClient = ({
     };
   };
 
+  const getProjectMembers = async (projectId) => {
+    requireAccountToken("getRailwayProjectMembers");
+    const id = await requireResolvedProjectId(projectId, "getRailwayProjectMembers");
+    const data = await request(
+      `
+        query RailwayProjectMembers($projectId: String!) {
+          projectMembers(projectId: $projectId) {
+            id
+            role
+            user {
+              name
+              email
+            }
+          }
+        }
+      `,
+      { projectId: id },
+    );
+    return data.projectMembers;
+  };
+
   const listEnvironments = async ({ projectId, isEphemeral } = {}) => {
     const resolvedProjectId = await resolveProjectId(projectId);
     const data = await request(
@@ -308,6 +339,675 @@ export const createRailwayClient = ({
     };
   };
 
+  const getService = async (serviceId) => {
+    const data = await request(
+      `
+        query RailwayService($id: String!) {
+          service(id: $id) {
+            id
+            name
+            icon
+            createdAt
+            updatedAt
+            deletedAt
+            featureFlags
+            project {
+              id
+              name
+            }
+          }
+        }
+      `,
+      { id: serviceId },
+    );
+    return {
+      ...data.service,
+      projectId: data.service.project?.id ?? null,
+      projectName: data.service.project?.name ?? null,
+    };
+  };
+
+  const getServiceInstance = async ({ serviceId, environmentId }) => {
+    const data = await request(
+      `
+        query RailwayServiceInstance($serviceId: String!, $environmentId: String!) {
+          serviceInstance(serviceId: $serviceId, environmentId: $environmentId) {
+            id
+            serviceId
+            serviceName
+            environmentId
+            rootDirectory
+            railwayConfigFile
+            buildCommand
+            startCommand
+            healthcheckPath
+            cronSchedule
+            latestDeployment {
+              id
+              status
+              url
+              staticUrl
+            }
+            domains {
+              serviceDomains {
+                id
+                domain
+              }
+              customDomains {
+                id
+                domain
+              }
+            }
+          }
+        }
+      `,
+      { serviceId, environmentId },
+    );
+    return data.serviceInstance;
+  };
+
+  const getServiceInstanceLimits = async ({ serviceId, environmentId }) => {
+    const data = await request(
+      `
+        query RailwayServiceInstanceLimits($serviceId: String!, $environmentId: String!) {
+          serviceInstanceLimits(serviceId: $serviceId, environmentId: $environmentId)
+        }
+      `,
+      { serviceId, environmentId },
+    );
+    return data.serviceInstanceLimits;
+  };
+
+  const getDeployment = async (deploymentId) => {
+    const data = await request(
+      `
+        query RailwayDeployment($id: String!) {
+          deployment(id: $id) {
+            id
+            status
+            createdAt
+            updatedAt
+            statusUpdatedAt
+            canRedeploy
+            canRollback
+            deploymentStopped
+            environmentId
+            projectId
+            serviceId
+            url
+            staticUrl
+            service {
+              id
+              name
+            }
+            environment {
+              id
+              name
+            }
+          }
+        }
+      `,
+      { id: deploymentId },
+    );
+    return {
+      ...data.deployment,
+      serviceName: data.deployment.service?.name ?? null,
+      environmentName: data.deployment.environment?.name ?? null,
+    };
+  };
+
+  const listDeployments = async ({
+    projectId,
+    environmentId,
+    serviceId,
+    first = 20,
+    after = null,
+    before = null,
+    last = null,
+  } = {}) => {
+    const resolvedProjectId =
+      projectId == null && auth.kind === "project"
+        ? await requireResolvedProjectId(null, "listRailwayDeployments")
+        : projectId;
+
+    const input = compactObject({
+      projectId: resolvedProjectId,
+      environmentId,
+      serviceId,
+    });
+
+    const data = await request(
+      `
+        query RailwayDeployments(
+          $input: DeploymentListInput!
+          $first: Int
+          $after: String
+          $before: String
+          $last: Int
+        ) {
+          deployments(
+            input: $input
+            first: $first
+            after: $after
+            before: $before
+            last: $last
+          ) {
+            edges {
+              node {
+                id
+                status
+                createdAt
+                updatedAt
+                environmentId
+                projectId
+                serviceId
+                url
+                staticUrl
+              }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+        }
+      `,
+      { input, first, after, before, last },
+    );
+
+    return {
+      deployments: connectionNodes(data.deployments),
+      pageInfo: data.deployments?.pageInfo ?? null,
+    };
+  };
+
+  const createProject = async (input = {}) => {
+    requireAccountToken("createRailwayProject");
+    const data = await request(
+      `
+        mutation RailwayProjectCreate($input: ProjectCreateInput!) {
+          projectCreate(input: $input) {
+            id
+            name
+            description
+            workspace {
+              id
+              name
+            }
+          }
+        }
+      `,
+      { input: compactObject(input) },
+    );
+    return data.projectCreate;
+  };
+
+  const updateProject = async ({ projectId, ...input } = {}) => {
+    requireAccountToken("updateRailwayProject");
+    const id = await requireResolvedProjectId(projectId, "updateRailwayProject");
+    const data = await request(
+      `
+        mutation RailwayProjectUpdate($id: String!, $input: ProjectUpdateInput!) {
+          projectUpdate(id: $id, input: $input) {
+            id
+            name
+            description
+            prDeploys
+            focusedPrEnvironments
+            botPrEnvironments
+            isPublic
+          }
+        }
+      `,
+      { id, input: compactObject(input) },
+    );
+    return data.projectUpdate;
+  };
+
+  const deleteProject = async (projectId) => {
+    requireAccountToken("deleteRailwayProject");
+    const id = await requireResolvedProjectId(projectId, "deleteRailwayProject");
+    const deleted = await request(
+      `
+        mutation RailwayProjectDelete($id: String!) {
+          projectDelete(id: $id)
+        }
+      `,
+      { id },
+    );
+    return {
+      deleted: Boolean(deleted.projectDelete),
+      projectId: id,
+    };
+  };
+
+  const transferProject = async ({ projectId, workspaceId } = {}) => {
+    requireAccountToken("transferRailwayProject");
+    const id = await requireResolvedProjectId(projectId, "transferRailwayProject");
+    const transferred = await request(
+      `
+        mutation RailwayProjectTransfer($projectId: String!, $input: ProjectTransferInput!) {
+          projectTransfer(projectId: $projectId, input: $input)
+        }
+      `,
+      {
+        projectId: id,
+        input: { workspaceId },
+      },
+    );
+    return {
+      transferred: Boolean(transferred.projectTransfer),
+      projectId: id,
+      workspaceId,
+    };
+  };
+
+  const createService = async (input = {}) => {
+    const data = await request(
+      `
+        mutation RailwayServiceCreate($input: ServiceCreateInput!) {
+          serviceCreate(input: $input) {
+            id
+            name
+            icon
+            projectId
+          }
+        }
+      `,
+      { input: compactObject(input) },
+    );
+    return data.serviceCreate;
+  };
+
+  const updateService = async ({ serviceId, ...input } = {}) => {
+    const data = await request(
+      `
+        mutation RailwayServiceUpdate($id: String!, $input: ServiceUpdateInput!) {
+          serviceUpdate(id: $id, input: $input) {
+            id
+            name
+            icon
+            projectId
+          }
+        }
+      `,
+      { id: serviceId, input: compactObject(input) },
+    );
+    return data.serviceUpdate;
+  };
+
+  const connectService = async ({ serviceId, ...input } = {}) => {
+    const data = await request(
+      `
+        mutation RailwayServiceConnect($id: String!, $input: ServiceConnectInput!) {
+          serviceConnect(id: $id, input: $input) {
+            id
+            name
+            icon
+            projectId
+          }
+        }
+      `,
+      { id: serviceId, input: compactObject(input) },
+    );
+    return data.serviceConnect;
+  };
+
+  const disconnectService = async (serviceId) => {
+    const disconnected = await request(
+      `
+        mutation RailwayServiceDisconnect($id: String!) {
+          serviceDisconnect(id: $id)
+        }
+      `,
+      { id: serviceId },
+    );
+    return {
+      disconnected: Boolean(disconnected.serviceDisconnect),
+      serviceId,
+    };
+  };
+
+  const deleteService = async ({ serviceId, environmentId } = {}) => {
+    const deleted = await request(
+      `
+        mutation RailwayServiceDelete($id: String!, $environmentId: String) {
+          serviceDelete(id: $id, environmentId: $environmentId)
+        }
+      `,
+      { id: serviceId, environmentId },
+    );
+    return {
+      deleted: Boolean(deleted.serviceDelete),
+      serviceId,
+      environmentId: environmentId ?? null,
+    };
+  };
+
+  const updateServiceInstance = async ({
+    serviceId,
+    environmentId,
+    ...input
+  } = {}) => {
+    const updated = await request(
+      `
+        mutation RailwayServiceInstanceUpdate(
+          $serviceId: String!
+          $environmentId: String
+          $input: ServiceInstanceUpdateInput!
+        ) {
+          serviceInstanceUpdate(
+            serviceId: $serviceId
+            environmentId: $environmentId
+            input: $input
+          )
+        }
+      `,
+      {
+        serviceId,
+        environmentId,
+        input: compactObject(input),
+      },
+    );
+    return {
+      updated: Boolean(updated.serviceInstanceUpdate),
+      serviceId,
+      environmentId: environmentId ?? null,
+    };
+  };
+
+  const deployService = async ({
+    serviceId,
+    environmentId,
+    commitSha,
+    latestCommit,
+  } = {}) => {
+    const deployment = await request(
+      `
+        mutation RailwayServiceInstanceDeploy(
+          $serviceId: String!
+          $environmentId: String!
+          $commitSha: String
+          $latestCommit: Boolean
+        ) {
+          serviceInstanceDeploy(
+            serviceId: $serviceId
+            environmentId: $environmentId
+            commitSha: $commitSha
+            latestCommit: $latestCommit
+          ) {
+            id
+            status
+            environmentId
+            serviceId
+            url
+            staticUrl
+          }
+        }
+      `,
+      { serviceId, environmentId, commitSha, latestCommit },
+    );
+    return deployment.serviceInstanceDeploy;
+  };
+
+  const redeployService = async ({ serviceId, environmentId } = {}) => {
+    const deployment = await request(
+      `
+        mutation RailwayServiceInstanceRedeploy(
+          $serviceId: String!
+          $environmentId: String!
+        ) {
+          serviceInstanceRedeploy(
+            serviceId: $serviceId
+            environmentId: $environmentId
+          ) {
+            id
+            status
+            environmentId
+            serviceId
+            url
+            staticUrl
+          }
+        }
+      `,
+      { serviceId, environmentId },
+    );
+    return deployment.serviceInstanceRedeploy;
+  };
+
+  const updateServiceInstanceLimits = async ({
+    serviceId,
+    environmentId,
+    memoryGB,
+    vCPUs,
+  } = {}) => {
+    const updated = await request(
+      `
+        mutation RailwayServiceInstanceLimitsUpdate(
+          $input: ServiceInstanceLimitsUpdateInput!
+        ) {
+          serviceInstanceLimitsUpdate(input: $input)
+        }
+      `,
+      {
+        input: compactObject({
+          serviceId,
+          environmentId,
+          memoryGB,
+          vCPUs,
+        }),
+      },
+    );
+    return {
+      updated: Boolean(updated.serviceInstanceLimitsUpdate),
+      serviceId,
+      environmentId,
+      memoryGB: memoryGB ?? null,
+      vCPUs: vCPUs ?? null,
+    };
+  };
+
+  const createEnvironment = async (input = {}) => {
+    const environment = await request(
+      `
+        mutation RailwayEnvironmentCreate($input: EnvironmentCreateInput!) {
+          environmentCreate(input: $input) {
+            id
+            name
+            isEphemeral
+            projectId
+          }
+        }
+      `,
+      { input: compactObject(input) },
+    );
+    return environment.environmentCreate;
+  };
+
+  const deleteEnvironment = async (environmentId) => {
+    const deleted = await request(
+      `
+        mutation RailwayEnvironmentDelete($id: String!) {
+          environmentDelete(id: $id)
+        }
+      `,
+      { id: environmentId },
+    );
+    return {
+      deleted: Boolean(deleted.environmentDelete),
+      environmentId,
+    };
+  };
+
+  const upsertVariable = async (input = {}) => {
+    const updated = await request(
+      `
+        mutation RailwayVariableUpsert($input: VariableUpsertInput!) {
+          variableUpsert(input: $input)
+        }
+      `,
+      { input: compactObject(input) },
+    );
+    return {
+      updated: Boolean(updated.variableUpsert),
+      name: input.name ?? null,
+      environmentId: input.environmentId ?? null,
+      serviceId: input.serviceId ?? null,
+      projectId: input.projectId ?? null,
+    };
+  };
+
+  const deleteVariable = async (input = {}) => {
+    const deleted = await request(
+      `
+        mutation RailwayVariableDelete($input: VariableDeleteInput!) {
+          variableDelete(input: $input)
+        }
+      `,
+      { input: compactObject(input) },
+    );
+    return {
+      deleted: Boolean(deleted.variableDelete),
+      name: input.name ?? null,
+      environmentId: input.environmentId ?? null,
+      serviceId: input.serviceId ?? null,
+      projectId: input.projectId ?? null,
+    };
+  };
+
+  const createServiceDomain = async (input = {}) => {
+    const domain = await request(
+      `
+        mutation RailwayServiceDomainCreate($input: ServiceDomainCreateInput!) {
+          serviceDomainCreate(input: $input) {
+            id
+            domain
+          }
+        }
+      `,
+      { input: compactObject(input) },
+    );
+    return domain.serviceDomainCreate;
+  };
+
+  const updateServiceDomain = async (input = {}) => {
+    const updated = await request(
+      `
+        mutation RailwayServiceDomainUpdate($input: ServiceDomainUpdateInput!) {
+          serviceDomainUpdate(input: $input)
+        }
+      `,
+      { input: compactObject(input) },
+    );
+    return {
+      updated: Boolean(updated.serviceDomainUpdate),
+      serviceDomainId: input.serviceDomainId ?? null,
+    };
+  };
+
+  const deleteServiceDomain = async (serviceDomainId) => {
+    const deleted = await request(
+      `
+        mutation RailwayServiceDomainDelete($id: String!) {
+          serviceDomainDelete(id: $id)
+        }
+      `,
+      { id: serviceDomainId },
+    );
+    return {
+      deleted: Boolean(deleted.serviceDomainDelete),
+      serviceDomainId,
+    };
+  };
+
+  const createCustomDomain = async (input = {}) => {
+    const domain = await request(
+      `
+        mutation RailwayCustomDomainCreate($input: CustomDomainCreateInput!) {
+          customDomainCreate(input: $input) {
+            id
+            domain
+          }
+        }
+      `,
+      { input: compactObject(input) },
+    );
+    return domain.customDomainCreate;
+  };
+
+  const updateCustomDomain = async ({
+    customDomainId,
+    environmentId,
+    targetPort,
+  } = {}) => {
+    const updated = await request(
+      `
+        mutation RailwayCustomDomainUpdate(
+          $id: String!
+          $environmentId: String!
+          $targetPort: Int
+        ) {
+          customDomainUpdate(
+            id: $id
+            environmentId: $environmentId
+            targetPort: $targetPort
+          )
+        }
+      `,
+      { id: customDomainId, environmentId, targetPort },
+    );
+    return {
+      updated: Boolean(updated.customDomainUpdate),
+      customDomainId,
+    };
+  };
+
+  const deleteCustomDomain = async (customDomainId) => {
+    const deleted = await request(
+      `
+        mutation RailwayCustomDomainDelete($id: String!) {
+          customDomainDelete(id: $id)
+        }
+      `,
+      { id: customDomainId },
+    );
+    return {
+      deleted: Boolean(deleted.customDomainDelete),
+      customDomainId,
+    };
+  };
+
+  const createVolume = async (input = {}) => {
+    const volume = await request(
+      `
+        mutation RailwayVolumeCreate($input: VolumeCreateInput!) {
+          volumeCreate(input: $input) {
+            id
+          }
+        }
+      `,
+      { input: compactObject(input) },
+    );
+    return volume.volumeCreate;
+  };
+
+  const deleteVolume = async (volumeId) => {
+    const deleted = await request(
+      `
+        mutation RailwayVolumeDelete($volumeId: String!) {
+          volumeDelete(volumeId: $volumeId)
+        }
+      `,
+      { volumeId },
+    );
+    return {
+      deleted: Boolean(deleted.volumeDelete),
+      volumeId,
+    };
+  };
+
   const doctorProject = async ({ projectId } = {}) => {
     const project = await getProject(projectId);
     const primaryEnvironmentId =
@@ -364,10 +1064,41 @@ export const createRailwayClient = ({
     getCurrentViewer,
     validateAccountToken,
     listProjects,
+    createProject,
+    updateProject,
+    deleteProject,
+    transferProject,
+    getProjectMembers,
     getProjectTokenContext,
     getProject,
     listEnvironments,
     getEnvironment,
+    createEnvironment,
+    deleteEnvironment,
+    getService,
+    getServiceInstance,
+    getServiceInstanceLimits,
+    createService,
+    updateService,
+    connectService,
+    disconnectService,
+    deleteService,
+    updateServiceInstance,
+    deployService,
+    redeployService,
+    updateServiceInstanceLimits,
+    getDeployment,
+    listDeployments,
+    upsertVariable,
+    deleteVariable,
+    createServiceDomain,
+    updateServiceDomain,
+    deleteServiceDomain,
+    createCustomDomain,
+    updateCustomDomain,
+    deleteCustomDomain,
+    createVolume,
+    deleteVolume,
     doctorProject,
   };
 };
@@ -381,6 +1112,11 @@ const connectionNodes = (connection) => {
   }
   return nodes;
 };
+
+const compactObject = (value) =>
+  Object.fromEntries(
+    Object.entries(value ?? {}).filter(([, entry]) => entry !== undefined),
+  );
 
 const hasErrors = (payload) =>
   typeof payload === "object" &&
