@@ -3,6 +3,7 @@
 Start with:
 
 - [Architecture](architecture.md)
+- [Usage](usage.md)
 - [Open Source Readiness](open-source-readiness.md)
 - [Publishing](publishing.md)
 - [Migration Plan](migration-plan.md)

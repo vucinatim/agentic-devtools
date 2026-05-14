@@ -1,10 +1,10 @@
 # Claude Adapter
 
-This plugin does not currently need a Claude-specific wrapper.
+This adapter does not currently need a Claude-specific wrapper.
 
-The shared runtime already exposes MCP from:
+Use the published package directly:
 
-- `../../../src/cli.mjs mcp namecheap`
+- `npx -y @vucinatim/agentic-devtools mcp namecheap`
 
 If Claude or another host needs packaging later, keep it thin:
 

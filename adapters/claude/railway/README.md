@@ -1,8 +1,8 @@
 # Claude Adapter
 
-Claude-facing adapters should wrap the shared Railway MCP runtime:
+Claude-facing adapters should wrap the published Railway MCP runtime:
 
-- `../../../src/cli.mjs mcp railway`
+- `npx -y @vucinatim/agentic-devtools mcp railway`
 
 Keep this adapter thin:
 

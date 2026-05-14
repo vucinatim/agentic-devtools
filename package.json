@@ -2,7 +2,7 @@
   "name": "@vucinatim/agentic-devtools",
   "version": "0.1.0",
   "private": false,
-  "description": "Agent-friendly MCP tools for developer platforms.",
+  "description": "MCP-first devtools for AI agents.",
   "type": "module",
   "license": "MIT",
   "author": {
@@ -21,7 +21,9 @@
   "keywords": [
     "agentic-devtools",
     "mcp",
+    "mcp-server",
     "agents",
+    "ai-agents",
     "namecheap",
     "railway",
     "developer-tools"

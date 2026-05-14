@@ -3,6 +3,14 @@
 Agentic Devtools should publish to npm from GitHub Actions using npm Trusted
 Publishing.
 
+The package should be published primarily for `npx` MCP execution:
+
+```bash
+npx -y @vucinatim/agentic-devtools mcp railway
+```
+
+Library imports are supported, but they are not the main user onboarding path.
+
 ## Recommended Flow
 
 Use:
@@ -171,6 +179,7 @@ The public package should include:
   "name": "@vucinatim/agentic-devtools",
   "version": "0.1.0",
   "private": false,
+  "description": "MCP-first devtools for AI agents.",
   "type": "module",
   "license": "MIT",
   "repository": {

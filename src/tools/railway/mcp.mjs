@@ -8,7 +8,7 @@ import {
   getRailwayAuthStatus,
 } from "./client.mjs";
 
-const HELP_TEXT = `Usage: node ./src/railway-mcp.mjs [--auth-status] [--test-connection]
+const HELP_TEXT = `Usage: agentic-devtools mcp railway
 
 Railway MCP server
 

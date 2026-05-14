@@ -1,15 +1,15 @@
 {
   "name": "namecheap",
   "version": "0.1.0",
-  "description": "Manage Namecheap domains and DNS from Codex.",
+  "description": "Run the Agentic Devtools Namecheap MCP server from Codex.",
   "author": {
     "name": "Tim Vucina",
     "email": "tim@vucina.com",
     "url": "https://github.com/vucinatim"
   },
   "homepage": "https://www.namecheap.com/",
-  "repository": "[TODO: https://github.com/vucinatim/agentic-devtools/tree/main/plugins/namecheap]",
-  "license": "Apache-2.0",
+  "repository": "https://github.com/vucinatim/agentic-devtools/tree/main/adapters/codex/namecheap",
+  "license": "MIT",
   "keywords": [
     "namecheap",
     "domains",
@@ -19,8 +19,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Namecheap",
-    "shortDescription": "Manage Namecheap domains and DNS from Codex.",
-    "longDescription": "Connect Namecheap so Codex can inspect domains, read DNS state, and safely update host records through a focused MCP surface.",
+    "shortDescription": "Run Namecheap MCP tools from Agentic Devtools.",
+    "longDescription": "Connect Namecheap so Codex can inspect domains, read DNS state, and safely update host records through the published Agentic Devtools MCP runtime.",
     "developerName": "Tim Vucina",
     "category": "Developer Tools",
     "capabilities": [

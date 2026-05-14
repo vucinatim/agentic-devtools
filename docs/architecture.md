@@ -7,7 +7,7 @@ The core idea is simple:
 
 - one package contains all tools
 - each tool owns its service-specific client and schemas
-- a shared registry exposes tools through MCP and CLI adapters
+- a shared registry exposes tools through MCP-first CLI execution
 - host-specific integrations stay thin and replaceable
 
 ## Package Strategy
@@ -31,6 +31,22 @@ Split into separate packages only when one of these becomes true:
 - the package grows enough that install size becomes a real problem
 
 Until then, keep a single package and expose separate entrypoints.
+
+## Usage Model
+
+The primary usage path is MCP execution through `npx`:
+
+```bash
+npx -y @vucinatim/agentic-devtools mcp railway
+npx -y @vucinatim/agentic-devtools mcp namecheap
+```
+
+This keeps Agentic Devtools out of the user's application dependency tree.
+
+Secondary paths:
+
+- global CLI install for repeated terminal use
+- package dependency install for users building custom automation
 
 ## Target Layout
 
@@ -74,7 +90,8 @@ now has one source tree, one CLI, and one release flow.
 
 ## Public API Shape
 
-The package should expose both programmatic imports and a CLI.
+The package should expose MCP execution through the CLI first, then
+programmatic imports for custom builders.
 
 Example package surface:
 
@@ -104,8 +121,8 @@ Example package surface:
 Example CLI usage:
 
 ```bash
-npx @vucinatim/agentic-devtools mcp namecheap
-npx @vucinatim/agentic-devtools mcp railway
+npx -y @vucinatim/agentic-devtools mcp namecheap
+npx -y @vucinatim/agentic-devtools mcp railway
 npx @vucinatim/agentic-devtools auth-status railway
 ```
 
@@ -151,6 +168,15 @@ destructive.
 ## Host Adapters
 
 Codex and Claude adapters should be metadata and launch wrappers only.
+
+Published host configs should prefer:
+
+```json
+{
+  "command": "npx",
+  "args": ["-y", "@vucinatim/agentic-devtools", "mcp", "<tool>"]
+}
+```
 
 They should not duplicate:
 

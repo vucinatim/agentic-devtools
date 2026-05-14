@@ -1,9 +1,10 @@
 {
   "mcpServers": {
     "namecheap": {
-      "command": "node",
+      "command": "npx",
       "args": [
-        "../../../src/cli.mjs",
+        "-y",
+        "@vucinatim/agentic-devtools",
         "mcp",
         "namecheap"
       ],

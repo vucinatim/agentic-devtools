@@ -6,7 +6,7 @@ The test suite should validate three layers:
 
 - service clients and auth resolution
 - shared core helpers and registry behavior
-- public package surfaces such as CLI commands and exports
+- public package surfaces such as MCP-first CLI commands and exports
 
 ## Commands
 

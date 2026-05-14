@@ -19,6 +19,12 @@ test("CLI prints usage", () => {
   assert.match(result.stdout, /agentic-devtools mcp <namecheap\|railway>/);
 });
 
+test("README-facing npx command shape maps to the CLI contract", () => {
+  const args = ["-y", "@vucinatim/agentic-devtools", "mcp", "railway"];
+
+  assert.deepEqual(args.slice(2), ["mcp", "railway"]);
+});
+
 test("CLI lists registered tools as JSON", () => {
   const result = runCli(["tools"]);
 

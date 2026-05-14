@@ -11,7 +11,7 @@ import {
 } from "./auth.mjs";
 import { createResolvedNamecheapClient } from "./client.mjs";
 
-const HELP_TEXT = `Usage: node ./src/namecheap-mcp.mjs [--connect] [--auth-status] [--test-connection]
+const HELP_TEXT = `Usage: agentic-devtools mcp namecheap
 
 Namecheap MCP server
 

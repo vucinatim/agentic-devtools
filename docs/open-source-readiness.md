@@ -86,7 +86,7 @@ The published package should include:
 Keep the package description concrete:
 
 ```txt
-Agent-friendly MCP tools for developer platforms.
+MCP-first devtools for AI agents.
 ```
 
 Avoid broad claims until the tool catalog is larger.
@@ -110,6 +110,7 @@ Every tool should document:
 
 - what it can do
 - auth variables
+- MCP host configuration
 - read/write safety model
 - exposed MCP tools
 - examples

@@ -2,10 +2,17 @@
 
 Reusable developer tools for AI agents.
 
-Agentic Devtools is a public-package-ready open-source project that exposes
-small, reliable MCP tools for developer platforms such as Railway and Namecheap.
-The repo is organized as one publishable package with a shared tool registry and
-thin host adapters.
+Agentic Devtools is an MCP-first open-source package for developer platforms
+such as Railway and Namecheap. It is meant to be run directly by MCP hosts with
+`npx`, while still exposing package imports for custom automation.
+
+Most users should not install this into their app. Point your agent host at the
+tool you need:
+
+```bash
+npx -y @vucinatim/agentic-devtools mcp railway
+npx -y @vucinatim/agentic-devtools mcp namecheap
+```
 
 Start here:
 
@@ -39,6 +46,71 @@ Project docs:
 The package publishes as `@vucinatim/agentic-devtools` and exposes one CLI:
 `agentic-devtools`.
 
+## Usage
+
+### MCP Host Via `npx`
+
+This is the primary usage path.
+
+Railway:
+
+```json
+{
+  "mcpServers": {
+    "railway": {
+      "command": "npx",
+      "args": ["-y", "@vucinatim/agentic-devtools", "mcp", "railway"],
+      "env": {
+        "RAILWAY_API_TOKEN": "..."
+      }
+    }
+  }
+}
+```
+
+Namecheap:
+
+```json
+{
+  "mcpServers": {
+    "namecheap": {
+      "command": "npx",
+      "args": ["-y", "@vucinatim/agentic-devtools", "mcp", "namecheap"],
+      "env": {
+        "NAMECHEAP_API_USER": "...",
+        "NAMECHEAP_API_KEY": "...",
+        "NAMECHEAP_USERNAME": "...",
+        "NAMECHEAP_CLIENT_IP": "..."
+      }
+    }
+  }
+}
+```
+
+### Global CLI
+
+Useful if you use the tools often from a terminal:
+
+```bash
+npm install -g @vucinatim/agentic-devtools
+agentic-devtools tools
+agentic-devtools auth-status railway
+agentic-devtools mcp railway
+```
+
+### Project Dependency
+
+Use this only when building your own automation on top of the service clients:
+
+```bash
+npm install @vucinatim/agentic-devtools
+```
+
+```js
+import { createRailwayClient } from "@vucinatim/agentic-devtools";
+import { createNamecheapClient } from "@vucinatim/agentic-devtools";
+```
+
 ## Design rule
 
 Keep the integration logic host-agnostic:
@@ -65,27 +137,24 @@ npm run coverage
 npm run check
 ```
 
-## Local use
+## Local Adapter Development
 
-The Codex marketplace entry for `namecheap` points to:
+Local Codex adapter entries point to:
 
 - `./adapters/codex/namecheap`
+- `./adapters/codex/railway`
 
-The shared MCP server implementation lives at:
+The shared MCP server implementations live at:
 
 - `src/tools/namecheap/mcp.mjs`
-
-The Railway plugin follows the same shape:
-
-- `./adapters/codex/railway`
 - `src/tools/railway/mcp.mjs`
 
-CLI examples:
+Local CLI examples:
 
 ```bash
-npx @vucinatim/agentic-devtools tools
-npx @vucinatim/agentic-devtools mcp railway
-npx @vucinatim/agentic-devtools auth-status namecheap
+node src/cli.mjs tools
+node src/cli.mjs mcp railway
+node src/cli.mjs auth-status namecheap
 ```
 
 ## Publishing direction
