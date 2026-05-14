@@ -4,9 +4,8 @@ Describe what changed and why.
 
 ## Validation
 
-- [ ] `npm run build`
-- [ ] `npm test`
-- [ ] `npm run pack:dry`
+- [ ] `npm run check`
+- [ ] `npm run coverage`
 
 ## Notes
 

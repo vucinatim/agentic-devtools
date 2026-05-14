@@ -50,15 +50,23 @@
   },
   "scripts": {
     "build": "node scripts/check-syntax.mjs",
-    "check": "npm run build && npm test",
+    "check": "npm run build && npm run coverage && npm run audit && npm run validate:package",
+    "coverage": "vitest run --coverage",
+    "audit": "npm audit --omit=dev",
     "pack:dry": "npm pack --dry-run",
-    "test": "node --test tests/tools/namecheap/*.test.mjs tests/tools/railway/*.test.mjs",
-    "test:namecheap": "node --test \"tests/tools/namecheap/*.test.mjs\"",
-    "test:railway": "node --test \"tests/tools/railway/*.test.mjs\""
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:namecheap": "vitest run tests/tools/namecheap",
+    "test:railway": "vitest run tests/tools/railway",
+    "validate:package": "node scripts/validate-package.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
     "fast-xml-parser": "^5.8.0",
     "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.6",
+    "vitest": "^4.1.6"
   }
 }

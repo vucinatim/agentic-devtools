@@ -22,11 +22,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
-
-      - name: Test
-        run: npm test
-
-      - name: Pack dry run
-        run: npm run pack:dry
+      - name: Check
+        run: npm run check

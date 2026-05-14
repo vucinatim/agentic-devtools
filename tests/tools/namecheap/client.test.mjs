@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import { test } from "vitest";
 import { createNamecheapClient, NamecheapApiError } from "../../../src/tools/namecheap/client.mjs";
 
 const makeResponse = (xml, status = 200) => ({

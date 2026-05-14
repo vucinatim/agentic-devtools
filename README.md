@@ -13,6 +13,7 @@ Start here:
 - [docs/open-source-readiness.md](docs/open-source-readiness.md)
 - [docs/publishing.md](docs/publishing.md)
 - [docs/migration-plan.md](docs/migration-plan.md)
+- [docs/testing.md](docs/testing.md)
 
 Project docs:
 
@@ -60,7 +61,8 @@ npm run build
 npm test
 npm run test:namecheap
 npm run test:railway
-npm run pack:dry
+npm run coverage
+npm run check
 ```
 
 ## Local use

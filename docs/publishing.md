@@ -98,8 +98,7 @@ jobs:
           node-version: "24"
           cache: "npm"
       - run: npm ci
-      - run: npm test
-      - run: npm run build
+      - run: npm run check
 ```
 
 This repo currently uses npm because it is a single package. If it later moves
@@ -139,8 +138,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           cache: "npm"
       - run: npm ci
-      - run: npm test
-      - run: npm run build
+      - run: npm run check
       - run: npm publish --access public --tag "${{ github.event.inputs.tag }}"
 ```
 
