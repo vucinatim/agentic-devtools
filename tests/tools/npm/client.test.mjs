@@ -125,6 +125,31 @@ test("rejects authenticated calls without npm auth", async () => {
   );
 });
 
+test("unwraps nested npm API error strings", async () => {
+  const client = createNpmClient({
+    env: {
+      NPM_TOKEN: "npm-token",
+    },
+    fetchImpl: async () =>
+      jsonResponse(
+        {
+          error: JSON.stringify({
+            success: false,
+            error: "You must be logged in to publish packages.",
+          }),
+        },
+        { ok: false, status: 401 },
+      ),
+  });
+
+  await assert.rejects(
+    () => client.getTrustedPublishers({ packageName: "@scope/pkg" }),
+    (error) =>
+      error instanceof NpmRegistryError &&
+      error.message === "You must be logged in to publish packages.",
+  );
+});
+
 test("requires explicit confirmation before real local publish", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "npm-publish-"));
   await writeFile(

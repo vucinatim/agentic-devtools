@@ -280,7 +280,16 @@ const formatNpmErrorMessage = (payload, status) => {
   if (payload && typeof payload === "object") {
     const message = payload.error || payload.message;
     if (typeof message === "string" && message.trim()) {
-      return message.trim();
+      const trimmed = message.trim();
+      try {
+        const nested = JSON.parse(trimmed);
+        if (typeof nested?.error === "string" && nested.error.trim()) {
+          return nested.error.trim();
+        }
+      } catch {
+        // Keep the original npm error string when it is not nested JSON.
+      }
+      return trimmed;
     }
   }
   return `npm registry request failed with HTTP ${status}`;
