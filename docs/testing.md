@@ -12,7 +12,8 @@ The test suite should validate three layers:
 
 ```bash
 npm test
-npm run test:published -- --version 0.1.1
+npm run test:cloudflare
+npm run test:published -- --version <published-version>
 npm run test:namecheap
 npm run test:railway
 npm run coverage

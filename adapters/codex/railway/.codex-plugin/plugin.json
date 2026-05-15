@@ -20,18 +20,19 @@
   "interface": {
     "displayName": "Railway",
     "shortDescription": "Run Railway MCP tools from Agentic Devtools.",
-    "longDescription": "Connect Railway so Codex can inspect account identity, projects, environments, service instances, domains, and deployment status through the published Agentic Devtools MCP runtime.",
+    "longDescription": "Connect Railway so Codex can inspect and manage projects, environments, services, deployments, variables, domains, and volumes through the published Agentic Devtools MCP runtime.",
     "developerName": "Tim Vucina",
     "category": "Developer Tools",
     "capabilities": [
-      "Read"
+      "Read",
+      "Write"
     ],
     "websiteURL": "https://railway.com/",
     "privacyPolicyURL": "https://railway.com/legal/privacy",
     "termsOfServiceURL": "https://railway.com/legal/terms",
     "defaultPrompt": [
       "Show me my Railway projects.",
-      "Inspect this Railway project's production environment.",
+      "Create a new Railway service in this project.",
       "Check the deployment status for this Railway project."
     ],
     "brandColor": "#0b0d0e"

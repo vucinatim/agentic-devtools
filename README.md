@@ -3,8 +3,9 @@
 Reusable developer tools for AI agents.
 
 Agentic Devtools is an MCP-first open-source package for developer platforms
-such as Railway, Namecheap, and npm. It is meant to be run directly by MCP hosts with
-`npx`, while still exposing package imports for custom automation.
+such as Cloudflare, Railway, Namecheap, and npm. It is meant to be run directly
+by MCP hosts with `npx`, while still exposing package imports for custom
+automation.
 
 `npx` is the canonical runtime path. Global install is optional terminal
 convenience only.
@@ -13,6 +14,7 @@ Most users should not install this into their app. Point your agent host at the
 tool you need:
 
 ```bash
+npx -y @vucinatim/agentic-devtools mcp cloudflare
 npx -y @vucinatim/agentic-devtools mcp railway
 npx -y @vucinatim/agentic-devtools mcp namecheap
 npx -y @vucinatim/agentic-devtools mcp npm
@@ -21,6 +23,7 @@ npx -y @vucinatim/agentic-devtools mcp npm
 Run the guided setup once if you do not want to put tokens in MCP host config:
 
 ```bash
+npx -y @vucinatim/agentic-devtools connect cloudflare
 npx -y @vucinatim/agentic-devtools connect railway
 npx -y @vucinatim/agentic-devtools connect namecheap
 npx -y @vucinatim/agentic-devtools connect npm
@@ -71,6 +74,33 @@ The package publishes as `@vucinatim/agentic-devtools` and exposes one CLI:
 ### MCP Host Via `npx`
 
 This is the primary usage path.
+
+Cloudflare:
+
+```json
+{
+  "mcpServers": {
+    "cloudflare": {
+      "command": "npx",
+      "args": ["-y", "@vucinatim/agentic-devtools", "mcp", "cloudflare"],
+      "env": {
+        "CLOUDFLARE_API_TOKEN": "...",
+        "CLOUDFLARE_ACCOUNT_ID": "...",
+        "CLOUDFLARE_ZONE_ID": "..."
+      }
+    }
+  }
+}
+```
+
+Use:
+
+- `CLOUDFLARE_API_TOKEN` for a scoped Cloudflare API token
+- `CLOUDFLARE_ACCOUNT_ID` as an optional default account id for R2 operations
+- `CLOUDFLARE_ZONE_ID` as an optional default zone id for DNS operations
+
+After `connect cloudflare`, the same server config can omit `env` because the
+stored token is resolved from `~/.config/agentic-devtools/cloudflare.json`.
 
 Railway:
 
@@ -138,6 +168,26 @@ GitHub Actions Trusted Publishing over local write tokens. Use
 `setup-publishing npm` to run npm's official Trusted Publishing setup command
 through the package.
 
+### Cloudflare Coverage
+
+The Cloudflare tool currently covers:
+
+- account discovery for agent-friendly account targeting
+- zones
+- Cloudflare Tunnels
+- DNS records
+- R2 buckets
+- managed `r2.dev` bucket domains
+- custom R2 bucket domains
+
+Cloudflare operations can now resolve common targets by name:
+
+- Tunnel operations can use `accountName` and `tunnelName`
+- DNS operations can use `zoneName` such as `magnify-all.com`
+- R2 operations can use `accountName` such as `zerodays`
+
+Raw `zoneId` and `accountId` are still supported for precise targeting.
+
 ### Railway Coverage
 
 The Railway tool now targets parity with Railway's documented public API for:
@@ -179,9 +229,11 @@ Example `package.json` scripts:
 {
   "scripts": {
     "agentic:tools": "agentic-devtools tools",
+    "agentic:cloudflare": "agentic-devtools mcp cloudflare",
     "agentic:railway": "agentic-devtools mcp railway",
     "agentic:namecheap": "agentic-devtools mcp namecheap",
     "agentic:npm": "agentic-devtools mcp npm",
+    "agentic:connect:cloudflare": "agentic-devtools connect cloudflare",
     "agentic:connect:railway": "agentic-devtools connect railway",
     "agentic:connect:namecheap": "agentic-devtools connect namecheap",
     "agentic:connect:npm": "agentic-devtools connect npm"
@@ -194,6 +246,10 @@ Example checked-in MCP config using the repo-local installed version:
 ```json
 {
   "mcpServers": {
+    "cloudflare": {
+      "command": "npx",
+      "args": ["agentic-devtools", "mcp", "cloudflare"]
+    },
     "railway": {
       "command": "npx",
       "args": ["agentic-devtools", "mcp", "railway"]
@@ -213,6 +269,7 @@ Example checked-in MCP config using the repo-local installed version:
 Each developer still runs their own local auth setup:
 
 ```bash
+npm run agentic:connect:cloudflare
 npm run agentic:connect:railway
 npm run agentic:connect:namecheap
 npm run agentic:connect:npm
@@ -231,8 +288,11 @@ Useful if you use the tools often from a terminal:
 ```bash
 npm install -g @vucinatim/agentic-devtools
 agentic-devtools tools
+agentic-devtools connect cloudflare
 agentic-devtools connect railway
+agentic-devtools auth-status cloudflare
 agentic-devtools auth-status railway
+agentic-devtools mcp cloudflare
 agentic-devtools mcp railway
 ```
 
@@ -262,6 +322,7 @@ npm install @vucinatim/agentic-devtools
 ```
 
 ```js
+import { createCloudflareClient } from "@vucinatim/agentic-devtools";
 import { createRailwayClient } from "@vucinatim/agentic-devtools";
 import { createNamecheapClient } from "@vucinatim/agentic-devtools";
 import { createNpmClient } from "@vucinatim/agentic-devtools";
@@ -277,6 +338,7 @@ Keep the integration logic host-agnostic:
 
 ## Current plugins
 
+- `cloudflare`
 - `namecheap`
 - `railway`
 - `npm`
@@ -288,6 +350,7 @@ Current validation commands:
 ```bash
 npm run build
 npm test
+npm run test:cloudflare
 npm run test:published -- --version <published-version>
 npm run test:namecheap
 npm run test:railway
@@ -299,19 +362,25 @@ npm run check
 
 Local Codex adapter entries point to:
 
+- `./adapters/codex/cloudflare`
 - `./adapters/codex/namecheap`
 - `./adapters/codex/railway`
+- `./adapters/codex/npm`
 
 The shared MCP server implementations live at:
 
+- `src/tools/cloudflare/mcp.mjs`
 - `src/tools/namecheap/mcp.mjs`
 - `src/tools/railway/mcp.mjs`
+- `src/tools/npm/mcp.mjs`
 
 Local CLI examples:
 
 ```bash
 node src/cli.mjs tools
+node src/cli.mjs mcp cloudflare
 node src/cli.mjs mcp railway
+node src/cli.mjs auth-status cloudflare
 node src/cli.mjs auth-status namecheap
 ```
 

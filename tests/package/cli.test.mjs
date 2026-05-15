@@ -19,10 +19,13 @@ test("CLI prints usage", () => {
   const result = runCli(["--help"]);
 
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /agentic-devtools mcp <namecheap\|railway\|npm>/);
   assert.match(
     result.stdout,
-    /agentic-devtools connect <namecheap\|railway\|npm>/,
+    /agentic-devtools mcp <cloudflare\|namecheap\|railway\|npm>/,
+  );
+  assert.match(
+    result.stdout,
+    /agentic-devtools connect <cloudflare\|namecheap\|railway\|npm>/,
   );
   assert.match(result.stdout, /agentic-devtools setup-publishing npm/);
 });
@@ -40,7 +43,7 @@ test("CLI lists registered tools as JSON", () => {
   const tools = JSON.parse(result.stdout);
   assert.deepEqual(
     tools.map((tool) => tool.name),
-    ["namecheap", "railway", "npm"],
+    ["cloudflare", "namecheap", "railway", "npm"],
   );
 });
 

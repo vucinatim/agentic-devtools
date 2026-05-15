@@ -13,6 +13,7 @@ Run guided setup once if you want credentials stored locally instead of inline
 in MCP host config:
 
 ```bash
+npx -y @vucinatim/agentic-devtools connect cloudflare
 npx -y @vucinatim/agentic-devtools connect railway
 npx -y @vucinatim/agentic-devtools connect namecheap
 npx -y @vucinatim/agentic-devtools connect npm
@@ -22,6 +23,33 @@ npx -y @vucinatim/agentic-devtools setup-publishing npm
 ## Primary: MCP Host With `npx`
 
 Use this for Codex, Claude, or any MCP-compatible host.
+
+Cloudflare:
+
+```json
+{
+  "mcpServers": {
+    "cloudflare": {
+      "command": "npx",
+      "args": ["-y", "@vucinatim/agentic-devtools", "mcp", "cloudflare"],
+      "env": {
+        "CLOUDFLARE_API_TOKEN": "...",
+        "CLOUDFLARE_ACCOUNT_ID": "...",
+        "CLOUDFLARE_ZONE_ID": "..."
+      }
+    }
+  }
+}
+```
+
+Use:
+
+- `CLOUDFLARE_API_TOKEN` for a scoped Cloudflare API token
+- `CLOUDFLARE_ACCOUNT_ID` as an optional default account id for R2 operations
+- `CLOUDFLARE_ZONE_ID` as an optional default zone id for DNS operations
+
+If `connect cloudflare` has already saved a token locally, omit the `env`
+block.
 
 Railway:
 
@@ -94,6 +122,7 @@ Install globally only if you want repeated terminal access without `npx`:
 ```bash
 npm install -g @vucinatim/agentic-devtools
 agentic-devtools tools
+agentic-devtools connect cloudflare
 agentic-devtools connect railway
 agentic-devtools connect npm
 agentic-devtools auth-status railway
@@ -127,12 +156,56 @@ npm install @vucinatim/agentic-devtools
 ```
 
 ```js
+import { createCloudflareClient } from "@vucinatim/agentic-devtools";
 import { createRailwayClient } from "@vucinatim/agentic-devtools";
 import { createNamecheapClient } from "@vucinatim/agentic-devtools";
 import { createNpmClient } from "@vucinatim/agentic-devtools";
 ```
 
 ## Auth
+
+Cloudflare supports:
+
+- guided local setup through `agentic-devtools connect cloudflare`
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID` as an optional default account id
+- `CLOUDFLARE_ZONE_ID` as an optional default zone id
+- `CLOUDFLARE_API_BASE_URL` for explicit API endpoint override
+
+Cloudflare token guidance:
+
+- use a scoped API token, not the legacy global API key
+- user-owned tokens are fine for personal local use
+- account-owned tokens are often better for team or service automation
+
+Recommended scopes for the current Cloudflare surface:
+
+- `Zone Zone Read`
+- `DNS Read`
+- `DNS Write`
+- `Workers R2 Storage Read`
+- `Workers R2 Storage Edit`
+- `Cloudflare Tunnel Read`
+- `Cloudflare Tunnel Write`
+
+Current Cloudflare capability coverage:
+
+- list accessible accounts for agent-friendly R2 targeting
+- list, inspect, create, update, delete, and configure Cloudflare Tunnels
+- get Cloudflare Tunnel connector tokens and inspect or clean up connections
+- list and inspect zones
+- list, create, update, and delete DNS records
+- list, inspect, create, update, and delete R2 buckets
+- inspect and update managed `r2.dev` bucket domains
+- list, inspect, attach, update, and remove custom R2 bucket domains
+
+Targeting guidance:
+
+- prefer `accountName` and `tunnelName` for Tunnel operations
+- prefer `zoneName` for DNS operations when the human names the zone directly
+- prefer `accountName` for R2 operations when the human names the account
+- fall back to `zoneId` and `accountId` only when names are ambiguous or an
+  exact provider identifier is required
 
 Railway supports:
 

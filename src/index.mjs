@@ -1,4 +1,17 @@
 export {
+  clearStoredCloudflareAuthConfig,
+  CLOUDFLARE_AUTH_CONFIG_PATH,
+  disconnectCloudflare,
+  getCloudflareAuthStatus,
+  resolveCloudflareAuthConfig,
+  runCloudflareBrowserAuthFlow,
+  saveCloudflareAuthConfig,
+} from "./tools/cloudflare/auth.mjs";
+export {
+  CloudflareApiError,
+  createCloudflareClient,
+} from "./tools/cloudflare/client.mjs";
+export {
   AUTH_CONFIG_PATH,
   CONFIG_ROOT,
   clearStoredAuthConfig,

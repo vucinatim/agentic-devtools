@@ -5,14 +5,15 @@ import { getTool, listTools } from "./core/tool-registry.mjs";
 
 const usage = () => `Usage:
   agentic-devtools tools
-  agentic-devtools mcp <namecheap|railway|npm>
-  agentic-devtools connect <namecheap|railway|npm>
+  agentic-devtools mcp <cloudflare|namecheap|railway|npm>
+  agentic-devtools connect <cloudflare|namecheap|railway|npm>
   agentic-devtools setup-publishing npm
-  agentic-devtools disconnect <namecheap|railway|npm>
-  agentic-devtools auth-status <namecheap|railway|npm>
-  agentic-devtools test-connection <namecheap|railway|npm>
+  agentic-devtools disconnect <cloudflare|namecheap|railway|npm>
+  agentic-devtools auth-status <cloudflare|namecheap|railway|npm>
+  agentic-devtools test-connection <cloudflare|namecheap|railway|npm>
 
 Environment:
+  Cloudflare: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_ZONE_ID, CLOUDFLARE_API_BASE_URL
   Namecheap: NAMECHEAP_API_USER, NAMECHEAP_API_KEY, NAMECHEAP_USERNAME, NAMECHEAP_CLIENT_IP
   Railway:   RAILWAY_PROJECT_TOKEN or RAILWAY_API_TOKEN / RAILWAY_TOKEN
   npm:       NPM_TOKEN or NODE_AUTH_TOKEN
@@ -42,6 +43,11 @@ if (args[0] === "mcp") {
 
 if (args[0] === "auth-status") {
   const toolName = args[1];
+  if (toolName === "cloudflare") {
+    const { getCloudflareAuthStatus } = await import("./tools/cloudflare/auth.mjs");
+    printJson(getCloudflareAuthStatus());
+    process.exit(0);
+  }
   if (toolName === "namecheap") {
     const { getAuthStatus } = await import("./tools/namecheap/auth.mjs");
     printJson(await getAuthStatus());
@@ -57,11 +63,21 @@ if (args[0] === "auth-status") {
     printJson(getNpmAuthStatus());
     process.exit(0);
   }
-  throw new Error("auth-status expects one of: namecheap, railway, npm");
+  throw new Error(
+    "auth-status expects one of: cloudflare, namecheap, railway, npm",
+  );
 }
 
 if (args[0] === "connect") {
   const toolName = args[1];
+  if (toolName === "cloudflare") {
+    const { runCloudflareBrowserAuthFlow } = await import(
+      "./tools/cloudflare/auth.mjs"
+    );
+    process.stderr.write("Opening Cloudflare browser setup flow...\n");
+    printJson(await runCloudflareBrowserAuthFlow());
+    process.exit(0);
+  }
   if (toolName === "namecheap") {
     const { runBrowserAuthFlow } = await import("./tools/namecheap/auth.mjs");
     process.stderr.write("Opening Namecheap browser setup flow...\n");
@@ -88,7 +104,7 @@ if (args[0] === "connect") {
     );
     process.exit(0);
   }
-  throw new Error("connect expects one of: namecheap, railway, npm");
+  throw new Error("connect expects one of: cloudflare, namecheap, railway, npm");
 }
 
 if (args[0] === "setup-publishing") {
@@ -120,6 +136,11 @@ if (args[0] === "setup-publishing") {
 
 if (args[0] === "disconnect") {
   const toolName = args[1];
+  if (toolName === "cloudflare") {
+    const { disconnectCloudflare } = await import("./tools/cloudflare/auth.mjs");
+    printJson(await disconnectCloudflare());
+    process.exit(0);
+  }
   if (toolName === "namecheap") {
     const { disconnectNamecheap } = await import("./tools/namecheap/auth.mjs");
     printJson(await disconnectNamecheap());
@@ -135,11 +156,25 @@ if (args[0] === "disconnect") {
     printJson(await disconnectNpm());
     process.exit(0);
   }
-  throw new Error("disconnect expects one of: namecheap, railway, npm");
+  throw new Error(
+    "disconnect expects one of: cloudflare, namecheap, railway, npm",
+  );
 }
 
 if (args[0] === "test-connection") {
   const toolName = args[1];
+  if (toolName === "cloudflare") {
+    const { createCloudflareClient } = await import("./tools/cloudflare/client.mjs");
+    const client = createCloudflareClient();
+    printJson({
+      ok: true,
+      tokenSource: client.auth.source,
+      defaultAccountId: client.auth.defaultAccountId,
+      defaultZoneId: client.auth.defaultZoneId,
+      result: await client.validateToken(),
+    });
+    process.exit(0);
+  }
   if (toolName === "namecheap") {
     const { createResolvedNamecheapClient } = await import(
       "./tools/namecheap/client.mjs"
@@ -180,7 +215,9 @@ if (args[0] === "test-connection") {
     });
     process.exit(0);
   }
-  throw new Error("test-connection expects one of: namecheap, railway, npm");
+  throw new Error(
+    "test-connection expects one of: cloudflare, namecheap, railway, npm",
+  );
 }
 
 throw new Error(`Unknown command "${args[0]}".\n\n${usage()}`);

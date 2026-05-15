@@ -1,4 +1,9 @@
 export const tools = {
+  cloudflare: {
+    name: "cloudflare",
+    description: "Inspect and manage Cloudflare DNS zones, records, and R2 buckets.",
+    mcpModule: "./tools/cloudflare/mcp.mjs",
+  },
   namecheap: {
     name: "namecheap",
     description: "Inspect and manage Namecheap domains and DNS.",

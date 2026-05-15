@@ -97,7 +97,10 @@ const testNpxUsage = async ({
       const help = await execCommand("npx", ["-y", packageSpec, "--help"], {
         cwd,
       });
-      assert.match(help.stdout, /agentic-devtools mcp <namecheap\|railway\|npm>/);
+      assert.match(
+        help.stdout,
+        /agentic-devtools mcp <cloudflare\|namecheap\|railway\|npm>/,
+      );
 
       const tools = await execJsonCommand(
         "npx",
@@ -106,7 +109,7 @@ const testNpxUsage = async ({
       );
       assert.deepEqual(
         tools.map((tool) => tool.name),
-        ["namecheap", "railway", "npm"],
+        ["cloudflare", "namecheap", "railway", "npm"],
       );
 
       const npmAuthStatus = await execJsonCommand(
@@ -117,7 +120,7 @@ const testNpxUsage = async ({
       assert.equal(typeof npmAuthStatus.configured, "boolean");
       assert.equal(typeof npmAuthStatus.registry, "string");
 
-      for (const toolName of ["namecheap", "railway", "npm"]) {
+      for (const toolName of ["cloudflare", "namecheap", "railway", "npm"]) {
         const helpResult = await execCommand(
           "npx",
           ["-y", packageSpec, "mcp", toolName, "--help"],
@@ -162,12 +165,15 @@ const testGlobalInstallUsage = async ({
       }
 
       const help = await execCommand(binaryPath, ["--help"]);
-      assert.match(help.stdout, /agentic-devtools connect <namecheap\|railway\|npm>/);
+      assert.match(
+        help.stdout,
+        /agentic-devtools connect <cloudflare\|namecheap\|railway\|npm>/,
+      );
 
       const tools = await execJsonCommand(binaryPath, ["tools"]);
       assert.deepEqual(
         tools.map((tool) => tool.name),
-        ["namecheap", "railway", "npm"],
+        ["cloudflare", "namecheap", "railway", "npm"],
       );
     },
     { packageSpec, timeoutMs, intervalMs },
@@ -211,6 +217,7 @@ const testProjectDependencyUsage = async ({
           `
         import {
           listTools,
+          createCloudflareClient,
           createNamecheapClient,
           createRailwayClient,
           createNpmClient
@@ -220,6 +227,7 @@ const testProjectDependencyUsage = async ({
         process.stdout.write(JSON.stringify({
           toolNames: listTools().map((tool) => tool.name),
           exports: {
+            createCloudflareClient: typeof createCloudflareClient,
             createNamecheapClient: typeof createNamecheapClient,
             createRailwayClient: typeof createRailwayClient,
             createNpmClient: typeof createNpmClient,
@@ -233,8 +241,14 @@ const testProjectDependencyUsage = async ({
         },
       );
 
-      assert.deepEqual(importCheck.toolNames, ["namecheap", "railway", "npm"]);
+      assert.deepEqual(importCheck.toolNames, [
+        "cloudflare",
+        "namecheap",
+        "railway",
+        "npm",
+      ]);
       assert.deepEqual(importCheck.exports, {
+        createCloudflareClient: "function",
         createNamecheapClient: "function",
         createRailwayClient: "function",
         createNpmClient: "function",

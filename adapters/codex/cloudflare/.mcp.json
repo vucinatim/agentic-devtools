@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "cloudflare": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@vucinatim/agentic-devtools",
+        "mcp",
+        "cloudflare"
+      ],
+      "env": {
+        "CLOUDFLARE_API_TOKEN": "[TODO: required scoped API token]",
+        "CLOUDFLARE_ACCOUNT_ID": "[TODO: optional default account id]",
+        "CLOUDFLARE_ZONE_ID": "[TODO: optional default zone id]",
+        "CLOUDFLARE_API_BASE_URL": "[TODO: optional explicit override]"
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
+  createCloudflareClient,
   createNamecheapClient,
   createNpmClient,
   createRailwayClient,
@@ -10,6 +11,7 @@ import {
 } from "../../src/index.mjs";
 
 test("root package export exposes stable public helpers", () => {
+  assert.equal(typeof createCloudflareClient, "function");
   assert.equal(typeof createNamecheapClient, "function");
   assert.equal(typeof createRailwayClient, "function");
   assert.equal(typeof createNpmClient, "function");
@@ -20,6 +22,6 @@ test("root package export exposes stable public helpers", () => {
 test("tool registry exposes the current public tool set", () => {
   assert.deepEqual(
     listTools().map((tool) => tool.name),
-    ["namecheap", "railway", "npm"],
+    ["cloudflare", "namecheap", "railway", "npm"],
   );
 });

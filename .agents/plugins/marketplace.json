@@ -5,6 +5,18 @@
   },
   "plugins": [
     {
+      "name": "cloudflare",
+      "source": {
+        "source": "local",
+        "path": "./adapters/codex/cloudflare"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
       "name": "namecheap",
       "source": {
         "source": "local",
@@ -21,6 +33,18 @@
       "source": {
         "source": "local",
         "path": "./adapters/codex/railway"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "npm",
+      "source": {
+        "source": "local",
+        "path": "./adapters/codex/npm"
       },
       "policy": {
         "installation": "AVAILABLE",

@@ -40,6 +40,7 @@ const requiredFiles = [
   "LICENSE",
   "src/cli.mjs",
   "src/index.mjs",
+  "src/tools/cloudflare/client.mjs",
   "src/tools/namecheap/client.mjs",
   "src/tools/railway/client.mjs",
   "src/tools/npm/client.mjs",

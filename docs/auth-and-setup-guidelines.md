@@ -57,6 +57,7 @@ Store credentials outside project folders by default:
 
 ```txt
 ~/.config/agentic-devtools/
+  cloudflare.json
   railway.json
   namecheap.json
 ```
@@ -171,6 +172,66 @@ Current Railway management scope should cover the documented public API for:
 
 Do not claim parity for dashboard-only or undocumented organization surfaces
 until Railway documents them as stable public API.
+
+## Cloudflare
+
+Cloudflare is Tier 2.
+
+Cloudflare should use scoped API tokens with bearer auth, not the legacy global
+API key, and not a speculative OAuth flow.
+
+Recommended path:
+
+1. `connect cloudflare`
+2. open a local browser setup page
+3. link directly to Cloudflare API token settings
+4. explain the minimum DNS and R2 token scopes
+5. accept token, optional default account id, and optional default zone id
+6. validate token through `/user/tokens/verify`
+7. store config in `~/.config/agentic-devtools/cloudflare.json`
+
+Supported auth sources:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_ZONE_ID`
+- `CLOUDFLARE_API_BASE_URL`
+- local Agentic Devtools Cloudflare config
+
+Token guidance:
+
+- prefer a scoped API token over the legacy global API key
+- user-owned tokens are fine for a single developer's local setup
+- account-owned tokens are often better for team or service automation
+
+Recommended scopes for the current Cloudflare surface:
+
+- `Zone Zone Read`
+- `DNS Read`
+- `DNS Write`
+- `Workers R2 Storage Read`
+- `Workers R2 Storage Edit`
+- `Cloudflare Tunnel Read`
+- `Cloudflare Tunnel Write`
+
+Resource scoping matters:
+
+- choose `Zone` resource rows for zone and DNS permissions
+- choose `Account` resource rows for R2 and Tunnel permissions
+- if one developer needs a token that works across multiple accounts they can
+  access, use a user-owned token scoped to those accessible accounts and zones
+
+Current Cloudflare management scope should cover:
+
+- zones
+- DNS records
+- Cloudflare Tunnels
+- R2 buckets
+- managed `r2.dev` bucket domains
+- custom R2 bucket domains
+
+Keep object-level R2 file operations out of the initial public contract unless
+there is a clear need to support them in this package.
 
 ## Namecheap
 
