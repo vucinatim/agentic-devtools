@@ -43,6 +43,39 @@ test("Railway CLI resolves project names for get-project", async () => {
   ]);
 });
 
+test("Railway CLI creates projects with explicit fields", async () => {
+  const calls = [];
+  const client = {
+    createProject: async (input) => {
+      calls.push(["createProject", input]);
+      return { id: "project-id", ...input };
+    },
+  };
+
+  const result = await runRailwayCli(
+    [
+      "create-project",
+      "--name",
+      "agentic-devtools-testground",
+      "--workspace-id",
+      "workspace-id",
+      "--description",
+      "smoke test",
+    ],
+    { client },
+  );
+
+  assert.equal(result.id, "project-id");
+  assert.deepEqual(calls[0], [
+    "createProject",
+    {
+      name: "agentic-devtools-testground",
+      description: "smoke test",
+      workspaceId: "workspace-id",
+    },
+  ]);
+});
+
 test("Railway CLI updates service instances with watch patterns and JSON input", async () => {
   const calls = [];
   const client = {
@@ -143,6 +176,55 @@ test("Railway CLI sets variables with resolved selectors", async () => {
       name: "NODE_ENV",
       value: "production",
       skipDeploys: true,
+    },
+  ]);
+});
+
+test("Railway CLI updates service domains by domain lookup", async () => {
+  const calls = [];
+  const client = {
+    resolveServiceSelector: async () => ({
+      serviceId: "service-id",
+      environmentId: "env-id",
+      projectId: "project-id",
+    }),
+    getServiceInstance: async () => ({
+      domains: {
+        serviceDomains: [{ id: "svc-domain-id", domain: "api-production.up.railway.app" }],
+        customDomains: [],
+      },
+    }),
+    updateServiceDomain: async (input) => {
+      calls.push(["updateServiceDomain", input]);
+      return { updated: true };
+    },
+  };
+
+  await runRailwayCli(
+    [
+      "update-service-domain",
+      "--project-name",
+      "magnify",
+      "--service-name",
+      "core-api",
+      "--environment-name",
+      "production",
+      "--domain",
+      "api-production.up.railway.app",
+      "--target-port",
+      "3000",
+    ],
+    { client },
+  );
+
+  assert.deepEqual(calls[0], [
+    "updateServiceDomain",
+    {
+      serviceDomainId: "svc-domain-id",
+      serviceId: "service-id",
+      environmentId: "env-id",
+      domain: "api-production.up.railway.app",
+      targetPort: 3000,
     },
   ]);
 });

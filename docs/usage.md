@@ -270,7 +270,9 @@ agentic-devtools railway set-variable \
 
 Use `agentic-devtools railway --help` for the full command list. Railway CLI
 commands resolve project, environment, and service names when possible and
-support `--input-json` for advanced provider fields.
+support `--input-json` for advanced provider fields. The CLI now covers
+project, environment, service, variable, domain, deployment, and volume
+operations directly.
 
 Namecheap supports:
 

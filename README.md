@@ -229,7 +229,9 @@ agentic-devtools railway set-variable \
 
 Use `agentic-devtools railway --help` for the full command list. Output is JSON
 so agents can script it reliably. For advanced provider fields that are not yet
-promoted to first-class flags, use `--input-json`.
+promoted to first-class flags, use `--input-json`. The Railway CLI now covers
+project, environment, service, variable, domain, deployment, and volume
+operations directly.
 
 Trusted Publishing notes:
 

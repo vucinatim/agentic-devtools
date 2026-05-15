@@ -2,13 +2,25 @@ import { createRailwayClient, RailwayApiError } from "./client.mjs";
 
 export const railwayCliUsage = () => `Usage:
   agentic-devtools railway list-projects [--workspace-id <id>] [--include-deleted]
+  agentic-devtools railway create-project --name <name> [--workspace-id <id>] [--description <text>] [--input-json <json>]
   agentic-devtools railway get-project [--project-id <id> | --project-name <name>]
+  agentic-devtools railway update-project [--project-id <id> | --project-name <name>] [--name <name>] [--description <text>] [--input-json <json>]
+  agentic-devtools railway delete-project [--project-id <id> | --project-name <name>]
+  agentic-devtools railway transfer-project [--project-id <id> | --project-name <name>] --workspace-id <id>
+  agentic-devtools railway get-project-members [--project-id <id> | --project-name <name>]
   agentic-devtools railway doctor [--project-id <id> | --project-name <name>]
   agentic-devtools railway list-environments [--project-id <id> | --project-name <name>] [--is-ephemeral <true|false>]
+  agentic-devtools railway create-environment [--project-id <id> | --project-name <name>] --name <name> [--ephemeral] [--source-environment-id <id> | --source-environment-name <name>] [--input-json <json>]
   agentic-devtools railway get-environment [--project-id <id> | --project-name <name>] [--environment-id <id> | --environment-name <name>]
+  agentic-devtools railway delete-environment [--project-id <id> | --project-name <name>] [--environment-id <id> | --environment-name <name>]
   agentic-devtools railway list-services [--project-id <id> | --project-name <name>] [--environment-id <id> | --environment-name <name>]
+  agentic-devtools railway create-service [--project-id <id> | --project-name <name>] [--environment-id <id> | --environment-name <name>] [--name <name>] [--icon <icon>] [--source-json <json>] [--variables-json <json>] [--input-json <json>]
   agentic-devtools railway get-service [--project-id <id> | --project-name <name>] [--environment-id <id> | --environment-name <name>] [--service-id <id> | --service-name <name>]
+  agentic-devtools railway delete-service [selectors...]
+  agentic-devtools railway get-service-instance [selectors...]
+  agentic-devtools railway get-service-instance-limits [selectors...]
   agentic-devtools railway list-deployments [selectors...]
+  agentic-devtools railway get-deployment --deployment-id <id>
   agentic-devtools railway update-service [selectors...] [--name <name>] [--icon <icon>] [--input-json <json>]
   agentic-devtools railway connect-service [selectors...] [--repo <repo>] [--branch <branch>] [--image <image>] [--input-json <json>]
   agentic-devtools railway disconnect-service [selectors...]
@@ -19,7 +31,13 @@ export const railwayCliUsage = () => `Usage:
   agentic-devtools railway set-variable [selectors...] --name <name> --value <value> [--skip-deploys]
   agentic-devtools railway delete-variable [selectors...] --name <name>
   agentic-devtools railway create-service-domain [selectors...] [--target-port <port>] [--input-json <json>]
+  agentic-devtools railway update-service-domain [selectors...] [--domain <domain>] [--service-domain-id <id>] [--target-port <port>]
+  agentic-devtools railway delete-service-domain [selectors...] [--domain <domain>] [--service-domain-id <id>]
   agentic-devtools railway create-custom-domain [selectors...] --domain <domain> [--target-port <port>]
+  agentic-devtools railway update-custom-domain [selectors...] [--domain <domain>] [--custom-domain-id <id>] [--target-port <port>]
+  agentic-devtools railway delete-custom-domain [selectors...] [--domain <domain>] [--custom-domain-id <id>]
+  agentic-devtools railway create-volume [selectors...] --mount-path <path> [--region <region>] [--input-json <json>]
+  agentic-devtools railway delete-volume --volume-id <id>
 
 Selectors:
   --project-id / --project-name
@@ -51,9 +69,61 @@ export const runRailwayCli = async (
         first: getIntegerOption(options, "first") ?? 100,
       });
 
+    case "create-project":
+      return client.createProject(
+        mergeInput(
+          {
+            name: requireStringOption(options, "name", command),
+            description: getStringOption(options, "description"),
+            workspaceId: getStringOption(options, "workspace-id"),
+          },
+          getJsonOption(options, "input-json", command),
+        ),
+      );
+
     case "get-project": {
       const project = await resolveProject(client, options, command);
       return client.getProject(project.projectId);
+    }
+
+    case "update-project": {
+      const project = await resolveProject(client, options, command);
+      return client.updateProject({
+        projectId: project.projectId,
+        ...mergeInput(
+          {
+            name: getStringOption(options, "name"),
+            description: getStringOption(options, "description"),
+            baseEnvironmentId: getStringOption(options, "base-environment-id"),
+            botPrEnvironments: getBooleanOption(options, "bot-pr-environments"),
+            focusedPrEnvironments: getBooleanOption(
+              options,
+              "focused-pr-environments",
+            ),
+            isPublic: getBooleanOption(options, "is-public"),
+            prDeploys: getBooleanOption(options, "pr-deploys"),
+          },
+          getJsonOption(options, "input-json", command),
+        ),
+      });
+    }
+
+    case "delete-project": {
+      const project = await resolveProject(client, options, command);
+      return client.deleteProject(project.projectId);
+    }
+
+    case "transfer-project": {
+      const project = await resolveProject(client, options, command);
+      return client.transferProject({
+        projectId: project.projectId,
+        workspaceId: requireStringOption(options, "workspace-id", command),
+      });
+    }
+
+    case "get-project-members": {
+      const project = await resolveProject(client, options, command);
+      return client.getProjectMembers(project.projectId);
     }
 
     case "doctor": {
@@ -69,9 +139,45 @@ export const runRailwayCli = async (
       });
     }
 
+    case "create-environment": {
+      const project = await resolveProject(client, options, command);
+      const sourceEnvironment = hasSelector(options, "source-environment-id") ||
+        hasSelector(options, "source-environment-name")
+        ? await client.resolveEnvironmentSelector({
+            projectId: project.projectId,
+            environmentId: getStringOption(options, "source-environment-id"),
+            environmentName: getStringOption(options, "source-environment-name"),
+            operation: command,
+          })
+        : null;
+
+      return client.createEnvironment(
+        mergeInput(
+          {
+            projectId: project.projectId,
+            name: requireStringOption(options, "name", command),
+            ephemeral: getBooleanOption(options, "ephemeral"),
+            sourceEnvironmentId: sourceEnvironment?.environmentId ?? undefined,
+            applyChangesInBackground: getBooleanOption(
+              options,
+              "apply-changes-in-background",
+            ),
+            skipInitialDeploys: getBooleanOption(options, "skip-initial-deploys"),
+            stageInitialChanges: getBooleanOption(options, "stage-initial-changes"),
+          },
+          getJsonOption(options, "input-json", command),
+        ),
+      );
+    }
+
     case "get-environment": {
       const environment = await resolveEnvironment(client, options, command);
       return client.getEnvironment(environment.environmentId);
+    }
+
+    case "delete-environment": {
+      const environment = await resolveEnvironment(client, options, command);
+      return client.deleteEnvironment(environment.environmentId);
     }
 
     case "list-services": {
@@ -95,9 +201,63 @@ export const runRailwayCli = async (
       return detail.services;
     }
 
+    case "create-service": {
+      const project = await resolveProject(client, options, command);
+      const environment = hasSelector(options, "environment-id") ||
+        hasSelector(options, "environment-name")
+        ? await resolveEnvironment(client, options, command)
+        : null;
+
+      return client.createService(
+        mergeInput(
+          {
+            projectId: project.projectId,
+            environmentId: environment?.environmentId ?? undefined,
+            name: getStringOption(options, "name"),
+            icon: getStringOption(options, "icon"),
+            branch: getStringOption(options, "branch"),
+            templateId: getStringOption(options, "template-id"),
+            templateServiceId: getStringOption(options, "template-service-id"),
+            source: getJsonOption(options, "source-json", command),
+            variables: getJsonOption(options, "variables-json", command),
+            registryCredentials: getJsonOption(
+              options,
+              "registry-credentials-json",
+              command,
+            ),
+          },
+          getJsonOption(options, "input-json", command),
+        ),
+      );
+    }
+
     case "get-service": {
       const service = await resolveService(client, options, command);
       return client.getService(service.serviceId);
+    }
+
+    case "delete-service": {
+      const service = await resolveService(client, options, command);
+      return client.deleteService({
+        serviceId: service.serviceId,
+        environmentId: getStringOption(options, "environment-id"),
+      });
+    }
+
+    case "get-service-instance": {
+      const instance = await resolveServiceAndEnvironment(client, options, command);
+      return client.getServiceInstance({
+        serviceId: instance.serviceId,
+        environmentId: instance.environmentId,
+      });
+    }
+
+    case "get-service-instance-limits": {
+      const instance = await resolveServiceAndEnvironment(client, options, command);
+      return client.getServiceInstanceLimits({
+        serviceId: instance.serviceId,
+        environmentId: instance.environmentId,
+      });
     }
 
     case "list-deployments": {
@@ -112,6 +272,11 @@ export const runRailwayCli = async (
         last: getIntegerOption(options, "last") ?? undefined,
       });
     }
+
+    case "get-deployment":
+      return client.getDeployment(
+        requireStringOption(options, "deployment-id", command),
+      );
 
     case "update-service": {
       const service = await resolveService(client, options, command);
@@ -231,6 +396,26 @@ export const runRailwayCli = async (
       });
     }
 
+    case "update-service-domain": {
+      const domain = await resolveServiceDomain(client, options, command);
+      return client.updateServiceDomain({
+        serviceDomainId: domain.serviceDomainId,
+        serviceId: domain.serviceId,
+        environmentId: domain.environmentId,
+        domain:
+          getStringOption(options, "domain") ??
+          domain.domain,
+        targetPort:
+          getIntegerOption(options, "target-port") ??
+          undefined,
+      });
+    }
+
+    case "delete-service-domain": {
+      const domain = await resolveServiceDomain(client, options, command);
+      return client.deleteServiceDomain(domain.serviceDomainId);
+    }
+
     case "create-custom-domain": {
       const instance = await resolveServiceAndEnvironment(client, options, command);
       return client.createCustomDomain({
@@ -241,6 +426,48 @@ export const runRailwayCli = async (
         targetPort: getIntegerOption(options, "target-port"),
       });
     }
+
+    case "update-custom-domain": {
+      const domain = await resolveCustomDomain(client, options, command);
+      return client.updateCustomDomain({
+        customDomainId: domain.customDomainId,
+        environmentId: domain.environmentId,
+        targetPort: getIntegerOption(options, "target-port"),
+      });
+    }
+
+    case "delete-custom-domain": {
+      const domain = await resolveCustomDomain(client, options, command);
+      return client.deleteCustomDomain(domain.customDomainId);
+    }
+
+    case "create-volume": {
+      const project = await resolveProject(client, options, command);
+      const environment = hasSelector(options, "environment-id") ||
+        hasSelector(options, "environment-name")
+        ? await resolveEnvironment(client, options, command)
+        : null;
+      const service = hasSelector(options, "service-id") ||
+        hasSelector(options, "service-name")
+        ? await resolveService(client, options, command)
+        : null;
+
+      return client.createVolume(
+        mergeInput(
+          {
+            projectId: project.projectId,
+            environmentId: environment?.environmentId ?? undefined,
+            serviceId: service?.serviceId ?? undefined,
+            mountPath: requireStringOption(options, "mount-path", command),
+            region: getStringOption(options, "region"),
+          },
+          getJsonOption(options, "input-json", command),
+        ),
+      );
+    }
+
+    case "delete-volume":
+      return client.deleteVolume(requireStringOption(options, "volume-id", command));
 
     default:
       throw new RailwayApiError(
@@ -292,6 +519,88 @@ const resolveServiceAndEnvironment = async (client, options, operation) => {
     serviceId: service.serviceId,
     environmentId: environment.environmentId,
     projectId: environment.projectId,
+  };
+};
+
+const resolveServiceDomain = async (client, options, operation) => {
+  const serviceDomainId = getStringOption(options, "service-domain-id");
+  const explicitDomain = getStringOption(options, "domain");
+  const instance = await resolveServiceAndEnvironment(client, options, operation);
+  const serviceInstance = await client.getServiceInstance({
+    serviceId: instance.serviceId,
+    environmentId: instance.environmentId,
+  });
+  const serviceDomains = serviceInstance.domains?.serviceDomains ?? [];
+
+  if (serviceDomainId) {
+    const matched = serviceDomains.find((entry) => entry.id === serviceDomainId);
+    return {
+      serviceDomainId,
+      domain: matched?.domain ?? explicitDomain ?? null,
+      serviceId: instance.serviceId,
+      environmentId: instance.environmentId,
+    };
+  }
+
+  if (!explicitDomain) {
+    throw new RailwayApiError(
+      `${operation} requires --service-domain-id or --domain.`,
+    );
+  }
+
+  const matched = serviceDomains.find((entry) => entry.domain === explicitDomain);
+  if (!matched) {
+    throw new RailwayApiError(
+      `${operation} could not find a matching Railway service domain for "${explicitDomain}".`,
+    );
+  }
+
+  return {
+    serviceDomainId: matched.id,
+    domain: matched.domain,
+    serviceId: instance.serviceId,
+    environmentId: instance.environmentId,
+  };
+};
+
+const resolveCustomDomain = async (client, options, operation) => {
+  const customDomainId = getStringOption(options, "custom-domain-id");
+  const explicitDomain = getStringOption(options, "domain");
+  const instance = await resolveServiceAndEnvironment(client, options, operation);
+  const serviceInstance = await client.getServiceInstance({
+    serviceId: instance.serviceId,
+    environmentId: instance.environmentId,
+  });
+  const customDomains = serviceInstance.domains?.customDomains ?? [];
+
+  if (customDomainId) {
+    const matched = customDomains.find((entry) => entry.id === customDomainId);
+    return {
+      customDomainId,
+      domain: matched?.domain ?? explicitDomain ?? null,
+      serviceId: instance.serviceId,
+      environmentId: instance.environmentId,
+    };
+  }
+
+  if (!explicitDomain) {
+    throw new RailwayApiError(
+      `${operation} requires --custom-domain-id or --domain.`,
+    );
+  }
+
+  const matched = customDomains.find((entry) => entry.domain === explicitDomain);
+  if (!matched) {
+    throw new RailwayApiError(
+      `${operation} could not find a matching Railway custom domain for "${explicitDomain}".`,
+    );
+  }
+
+  return {
+    customDomainId: matched.id,
+    domain: matched.domain,
+    serviceId: instance.serviceId,
+    environmentId: instance.environmentId,
   };
 };
 
