@@ -247,6 +247,31 @@ Not currently included as a supported public contract:
 
 - undocumented dashboard canvas/group organization internals
 
+Railway also now has a shell-first CLI layer for common operational work:
+
+```bash
+agentic-devtools railway list-projects
+agentic-devtools railway get-project --project-name magnify
+agentic-devtools railway list-services --project-name magnify
+agentic-devtools railway update-instance \
+  --project-name magnify \
+  --service-name core-api \
+  --environment-name production \
+  --watch-pattern apps/api/** \
+  --watch-pattern packages/contracts/**
+agentic-devtools railway set-variable \
+  --project-name magnify \
+  --environment-name production \
+  --service-name core-api \
+  --name NODE_ENV \
+  --value production \
+  --skip-deploys
+```
+
+Use `agentic-devtools railway --help` for the full command list. Railway CLI
+commands resolve project, environment, and service names when possible and
+support `--input-json` for advanced provider fields.
+
 Namecheap supports:
 
 - guided local setup through `agentic-devtools connect namecheap`

@@ -196,6 +196,111 @@ test("normalizes project connection fields", async () => {
   assert.deepEqual(project.services, [{ id: "service-id", name: "api" }]);
 });
 
+test("resolves Railway project, environment, and service selectors by name", async () => {
+  const client = createRailwayClient({
+    env: {
+      RAILWAY_API_TOKEN: "account-token",
+    },
+    fetchImpl: async (_url, init) => {
+      const request = parseGraphqlRequest(init);
+
+      if (request.query.includes("query RailwayProjects")) {
+        return jsonResponse({
+          data: {
+            projects: {
+              edges: [
+                {
+                  node: {
+                    id: "project-id",
+                    name: "magnify",
+                    workspace: { id: "workspace-id", name: "Workspace" },
+                  },
+                },
+              ],
+            },
+          },
+        });
+      }
+
+      if (request.query.includes("query RailwayProject(")) {
+        return jsonResponse({
+          data: {
+            project: {
+              id: "project-id",
+              name: "magnify",
+              prDeploys: false,
+              focusedPrEnvironments: false,
+              botPrEnvironments: false,
+              baseEnvironmentId: "env-production",
+              primaryEnvironmentId: "env-production",
+              workspace: { id: "workspace-id", name: "Workspace" },
+              environments: {
+                edges: [
+                  { node: { id: "env-production", name: "production" } },
+                  { node: { id: "env-preview", name: "preview" } },
+                ],
+              },
+              services: {
+                edges: [{ node: { id: "service-id", name: "api" } }],
+              },
+            },
+          },
+        });
+      }
+
+      if (request.query.includes("query RailwayEnvironment(")) {
+        return jsonResponse({
+          data: {
+            environment: {
+              id: "env-production",
+              name: "production",
+              projectId: "project-id",
+              isEphemeral: false,
+              canAccess: true,
+              sourceEnvironment: null,
+              serviceInstances: {
+                edges: [
+                  {
+                    node: {
+                      id: "instance-id",
+                      environmentId: "env-production",
+                      serviceId: "service-id",
+                      serviceName: "api",
+                      domains: { serviceDomains: [], customDomains: [] },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        });
+      }
+
+      return jsonResponse({ data: {} });
+    },
+  });
+
+  const project = await client.resolveProjectSelector({
+    projectName: "magnify",
+    operation: "test",
+  });
+  const environment = await client.resolveEnvironmentSelector({
+    projectName: "magnify",
+    operation: "test",
+  });
+  const service = await client.resolveServiceSelector({
+    projectName: "magnify",
+    environmentName: "production",
+    serviceName: "api",
+    operation: "test",
+  });
+
+  assert.equal(project.projectId, "project-id");
+  assert.equal(environment.environmentId, "env-production");
+  assert.equal(service.serviceId, "service-id");
+  assert.equal(service.environmentId, "env-production");
+});
+
 test("surfaces Railway GraphQL errors", async () => {
   const client = createRailwayClient({
     env: {

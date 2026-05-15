@@ -23,6 +23,7 @@ test("CLI prints usage", () => {
     result.stdout,
     /agentic-devtools mcp <cloudflare\|namecheap\|railway\|npm>/,
   );
+  assert.match(result.stdout, /agentic-devtools railway <command>/);
   assert.match(
     result.stdout,
     /agentic-devtools connect <cloudflare\|namecheap\|railway\|npm>/,

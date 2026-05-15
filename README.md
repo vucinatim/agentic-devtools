@@ -203,6 +203,34 @@ The Railway tool now targets parity with Railway's documented public API for:
 This does not currently claim parity for undocumented dashboard-only concepts
 such as canvas grouping internals.
 
+### Railway CLI
+
+For shell-first operational work, Railway now has a real command layer on top of
+the shared client instead of forcing raw GraphQL:
+
+```bash
+agentic-devtools railway list-projects
+agentic-devtools railway get-project --project-name magnify
+agentic-devtools railway list-services --project-name magnify
+agentic-devtools railway update-instance \
+  --project-name magnify \
+  --service-name core-api \
+  --environment-name production \
+  --watch-pattern apps/api/** \
+  --watch-pattern packages/contracts/**
+agentic-devtools railway set-variable \
+  --project-name magnify \
+  --environment-name production \
+  --service-name core-api \
+  --name NODE_ENV \
+  --value production \
+  --skip-deploys
+```
+
+Use `agentic-devtools railway --help` for the full command list. Output is JSON
+so agents can script it reliably. For advanced provider fields that are not yet
+promoted to first-class flags, use `--input-json`.
+
 Trusted Publishing notes:
 
 - npm currently documents Trusted Publishing for GitHub-hosted GitHub Actions,
@@ -292,6 +320,8 @@ agentic-devtools connect cloudflare
 agentic-devtools connect railway
 agentic-devtools auth-status cloudflare
 agentic-devtools auth-status railway
+agentic-devtools railway list-projects
+agentic-devtools railway doctor --project-name magnify
 agentic-devtools mcp cloudflare
 agentic-devtools mcp railway
 ```

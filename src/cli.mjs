@@ -5,6 +5,7 @@ import { getTool, listTools } from "./core/tool-registry.mjs";
 
 const usage = () => `Usage:
   agentic-devtools tools
+  agentic-devtools railway <command>
   agentic-devtools mcp <cloudflare|namecheap|railway|npm>
   agentic-devtools connect <cloudflare|namecheap|railway|npm>
   agentic-devtools setup-publishing npm
@@ -28,6 +29,17 @@ if (args.length === 0 || args[0] === "--help" || args[0] === "-h") {
 
 if (args[0] === "tools") {
   printJson(listTools());
+  process.exit(0);
+}
+
+if (args[0] === "railway") {
+  const { runRailwayCli } = await import("./tools/railway/cli.mjs");
+  const result = await runRailwayCli(args.slice(1));
+  if (result && typeof result === "object" && "__usage" in result) {
+    process.stdout.write(result.__usage);
+  } else {
+    printJson(result);
+  }
   process.exit(0);
 }
 

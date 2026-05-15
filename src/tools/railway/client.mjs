@@ -96,6 +96,245 @@ export const createRailwayClient = ({
     }
   };
 
+  const resolveProjectSelector = async ({
+    projectId,
+    projectName,
+    operation,
+  } = {}) => {
+    const explicitProjectId = projectId?.trim();
+    if (explicitProjectId) {
+      return {
+        projectId: explicitProjectId,
+        project: null,
+      };
+    }
+
+    const defaultProjectId = status.defaultProjectId?.trim();
+    if (defaultProjectId) {
+      return {
+        projectId: defaultProjectId,
+        project: null,
+      };
+    }
+
+    const requestedProjectName = pickString(projectName);
+
+    if (auth.kind === "project") {
+      const context = await getProjectTokenContext();
+      if (
+        requestedProjectName &&
+        !matchesSelector(context.project?.name, requestedProjectName)
+      ) {
+        throw new RailwayApiError(
+          `${operation} could not find a matching project for "${requestedProjectName}". The current Railway project token is scoped to "${context.project?.name ?? context.projectId}".`,
+        );
+      }
+      return {
+        projectId: context.projectId,
+        project: context.project ?? null,
+      };
+    }
+
+    const projects = await listProjects({
+      includeDeleted: false,
+      first: 100,
+    });
+    const resolved = resolveSingleNamedResource({
+      items: projects,
+      requestedName: requestedProjectName,
+      getId: (project) => project.id,
+      getLabel: (project) => project.name,
+      resourceLabel: "project",
+      operation,
+    });
+
+    if (resolved) {
+      return {
+        projectId: resolved.id,
+        project: projects.find((project) => project.id === resolved.id) ?? null,
+      };
+    }
+
+    throw new RailwayApiError(
+      `${operation} requires a Railway project. Pass projectId, pass projectName, set RAILWAY_PROJECT_ID, or use RAILWAY_PROJECT_TOKEN.`,
+    );
+  };
+
+  const resolveEnvironmentSelector = async ({
+    projectId,
+    projectName,
+    environmentId,
+    environmentName,
+    operation,
+  } = {}) => {
+    const explicitEnvironmentId = pickString(environmentId);
+    if (explicitEnvironmentId) {
+      return {
+        environmentId: explicitEnvironmentId,
+        projectId:
+          pickString(projectId) ??
+          status.defaultProjectId?.trim() ??
+          (auth.kind === "project"
+            ? (await getProjectTokenContext()).projectId
+            : null),
+        environment: null,
+        project: null,
+      };
+    }
+
+    const projectSelection = await resolveProjectSelector({
+      projectId,
+      projectName,
+      operation,
+    });
+    const project = await getProject(projectSelection.projectId);
+    const environments = project.environments ?? [];
+    const requestedEnvironmentName = pickString(environmentName);
+    const resolved = resolveSingleNamedResource({
+      items: environments,
+      requestedName: requestedEnvironmentName,
+      getId: (environment) => environment.id,
+      getLabel: (environment) => environment.name,
+      resourceLabel: "environment",
+      operation,
+      fallbackResolver: (items) => {
+        if (items.length === 1) {
+          return items[0];
+        }
+
+        const preferred =
+          items.find((item) => item.id === project.primaryEnvironmentId) ??
+          items.find((item) => item.id === project.baseEnvironmentId) ??
+          items.find((item) => normalizeSelector(item.name) === "production");
+
+        return preferred ?? null;
+      },
+    });
+
+    if (resolved) {
+      return {
+        environmentId: resolved.id,
+        projectId: project.id,
+        environment:
+          environments.find((environment) => environment.id === resolved.id) ?? null,
+        project,
+      };
+    }
+
+    throw new RailwayApiError(
+      `${operation} requires a Railway environment. Pass environmentId or environmentName.`,
+    );
+  };
+
+  const resolveServiceSelector = async ({
+    projectId,
+    projectName,
+    environmentId,
+    environmentName,
+    serviceId,
+    serviceName,
+    operation,
+  } = {}) => {
+    const explicitServiceId = pickString(serviceId);
+    const requestedServiceName = pickString(serviceName);
+
+    if (explicitServiceId) {
+      const environmentSelection =
+        pickString(environmentId) || pickString(environmentName)
+          ? await resolveEnvironmentSelector({
+              projectId,
+              projectName,
+              environmentId,
+              environmentName,
+              operation,
+            })
+          : null;
+
+      return {
+        serviceId: explicitServiceId,
+        service: null,
+        environment:
+          environmentSelection?.environment ?? null,
+        environmentId:
+          environmentSelection?.environmentId ??
+          pickString(environmentId) ??
+          null,
+        project:
+          environmentSelection?.project ?? null,
+        projectId:
+          environmentSelection?.projectId ??
+          pickString(projectId) ??
+          status.defaultProjectId?.trim() ??
+          null,
+      };
+    }
+
+    if (pickString(environmentId) || pickString(environmentName)) {
+      const environmentSelection = await resolveEnvironmentSelector({
+        projectId,
+        projectName,
+        environmentId,
+        environmentName,
+        operation,
+      });
+      const environmentDetail = await getEnvironment(environmentSelection.environmentId);
+      const services = (environmentDetail.serviceInstances ?? []).map((entry) => ({
+        id: entry.serviceId,
+        name: entry.serviceName,
+      }));
+      const resolved = resolveSingleNamedResource({
+        items: services,
+        requestedName: requestedServiceName,
+        getId: (service) => service.id,
+        getLabel: (service) => service.name,
+        resourceLabel: "service",
+        operation,
+      });
+
+      if (resolved) {
+        return {
+          serviceId: resolved.id,
+          service: services.find((service) => service.id === resolved.id) ?? null,
+          environment: environmentSelection.environment,
+          environmentId: environmentSelection.environmentId,
+          project: environmentSelection.project,
+          projectId: environmentSelection.projectId,
+        };
+      }
+    }
+
+    const projectSelection = await resolveProjectSelector({
+      projectId,
+      projectName,
+      operation,
+    });
+    const project = await getProject(projectSelection.projectId);
+    const services = project.services ?? [];
+    const resolved = resolveSingleNamedResource({
+      items: services,
+      requestedName: requestedServiceName,
+      getId: (service) => service.id,
+      getLabel: (service) => service.name,
+      resourceLabel: "service",
+      operation,
+    });
+
+    if (resolved) {
+      return {
+        serviceId: resolved.id,
+        service: services.find((service) => service.id === resolved.id) ?? null,
+        environment: null,
+        environmentId: null,
+        project,
+        projectId: project.id,
+      };
+    }
+
+    throw new RailwayApiError(
+      `${operation} requires a Railway service. Pass serviceId or serviceName.`,
+    );
+  };
+
   const getCurrentViewer = async () => {
     requireAccountToken("getRailwayViewer");
     const data = await request(`
@@ -1061,6 +1300,7 @@ export const createRailwayClient = ({
     getCurrentViewer,
     validateAccountToken,
     listProjects,
+    resolveProjectSelector,
     createProject,
     updateProject,
     deleteProject,
@@ -1069,10 +1309,12 @@ export const createRailwayClient = ({
     getProjectTokenContext,
     getProject,
     listEnvironments,
+    resolveEnvironmentSelector,
     getEnvironment,
     createEnvironment,
     deleteEnvironment,
     getService,
+    resolveServiceSelector,
     getServiceInstance,
     getServiceInstanceLimits,
     createService,
@@ -1114,6 +1356,109 @@ const compactObject = (value) =>
   Object.fromEntries(
     Object.entries(value ?? {}).filter(([, entry]) => entry !== undefined),
   );
+
+const pickString = (...values) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+};
+
+const normalizeSelector = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+const matchesSelector = (candidate, requested) => {
+  const wanted = normalizeSelector(requested);
+  if (!wanted) {
+    return true;
+  }
+
+  const value = normalizeSelector(candidate);
+  return value.includes(wanted);
+};
+
+const resolveSingleNamedResource = ({
+  items,
+  requestedName,
+  getId,
+  getLabel,
+  resourceLabel,
+  operation,
+  fallbackResolver,
+}) => {
+  const collection = Array.isArray(items) ? items : [];
+
+  if (collection.length === 0) {
+    return null;
+  }
+
+  if (!requestedName) {
+    if (collection.length === 1) {
+      return {
+        id: getId(collection[0]),
+        label: getLabel(collection[0]),
+      };
+    }
+
+    const fallback = typeof fallbackResolver === "function"
+      ? fallbackResolver(collection)
+      : null;
+    if (fallback) {
+      return {
+        id: getId(fallback),
+        label: getLabel(fallback),
+      };
+    }
+
+    throw new RailwayApiError(
+      `${operation} needs a ${resourceLabel} selector because multiple ${resourceLabel}s are accessible: ${collection
+        .slice(0, 10)
+        .map((item) => getLabel(item))
+        .join(", ")}.`,
+    );
+  }
+
+  const exactMatches = collection.filter(
+    (item) => normalizeSelector(getLabel(item)) === normalizeSelector(requestedName),
+  );
+
+  if (exactMatches.length === 1) {
+    return {
+      id: getId(exactMatches[0]),
+      label: getLabel(exactMatches[0]),
+    };
+  }
+
+  const fuzzyMatches = collection.filter((item) =>
+    matchesSelector(getLabel(item), requestedName),
+  );
+
+  if (fuzzyMatches.length === 1) {
+    return {
+      id: getId(fuzzyMatches[0]),
+      label: getLabel(fuzzyMatches[0]),
+    };
+  }
+
+  if (exactMatches.length > 1 || fuzzyMatches.length > 1) {
+    const matches = (exactMatches.length > 1 ? exactMatches : fuzzyMatches)
+      .slice(0, 10)
+      .map((item) => getLabel(item))
+      .join(", ");
+
+    throw new RailwayApiError(
+      `${operation} found multiple matching ${resourceLabel}s for "${requestedName}": ${matches}. Use the explicit ${resourceLabel} id if needed.`,
+    );
+  }
+
+  throw new RailwayApiError(
+    `${operation} could not find a matching ${resourceLabel} for "${requestedName}".`,
+  );
+};
 
 const hasErrors = (payload) =>
   typeof payload === "object" &&
