@@ -3,6 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { wrapToolHandler } from "../../core/result.mjs";
 import {
   disconnectNpm,
   getNpmAuthStatus,
@@ -10,6 +11,7 @@ import {
   runNpmBrowserAuthFlow,
 } from "./auth.mjs";
 import { createNpmClient } from "./client.mjs";
+import { mapNpmError } from "./error-mapper.mjs";
 import { runNpmTrustGithubSetup } from "./trust-cli.mjs";
 
 const HELP_TEXT = `Usage: agentic-devtools mcp npm
@@ -31,13 +33,9 @@ Standalone flags:
 Prefer GitHub Actions Trusted Publishing for real package publishing. Local publishing is supported but explicit confirmation is required.
 `;
 
+// Back-compat shim. Auto-wrapping on server.registerTool passes through.
 const createToolResult = (value) => ({
-  content: [
-    {
-      type: "text",
-      text: JSON.stringify(value, null, 2),
-    },
-  ],
+  content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
   structuredContent: value,
 });
 
@@ -51,9 +49,19 @@ const createServer = () => {
     },
     {
       instructions:
-        "Use these tools for npm registry inspection, token status checks, trusted publishing verification, and explicitly confirmed publishing. Prefer GitHub Actions Trusted Publishing over local write tokens.",
+        "Use these tools for npm registry inspection, token status checks, trusted publishing verification, and explicitly confirmed publishing. Prefer GitHub Actions Trusted Publishing over local write tokens. When a call fails, the result's `remediation` field tells the user what to do next.",
     },
   );
+
+  // Auto-wrap every handler with the structured-error middleware.
+  // mapNpmError handles 401/403/429/5xx + OTP/2FA patterns from the registry.
+  const originalRegisterTool = server.registerTool.bind(server);
+  server.registerTool = (name, spec, handler) =>
+    originalRegisterTool(
+      name,
+      spec,
+      wrapToolHandler(handler, { mapError: mapNpmError }),
+    );
 
   const withClient = async (callback) => {
     const client = createNpmClient();

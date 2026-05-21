@@ -3,7 +3,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { createJsonResult } from "../../core/result.mjs";
+import { capabilitiesFor, probeScopes } from "../../core/capabilities.mjs";
+import { wrapToolHandler } from "../../core/result.mjs";
 import {
   CLOUDFLARE_AUTH_CONFIG_PATH,
   disconnectCloudflare,
@@ -11,6 +12,7 @@ import {
   runCloudflareBrowserAuthFlow,
 } from "./auth.mjs";
 import { createCloudflareClient } from "./client.mjs";
+import { mapCloudflareError } from "./error-mapper.mjs";
 
 const HELP_TEXT = `Usage: agentic-devtools mcp cloudflare
 
@@ -52,6 +54,26 @@ const bucketLocationSchema = z.enum(["apac", "eeur", "enam", "weur", "wnam", "oc
 const bucketStorageClassSchema = z.enum(["Standard", "InfrequentAccess"]);
 const minTlsSchema = z.enum(["1.0", "1.1", "1.2", "1.3"]);
 const tunnelConfigSourceSchema = z.enum(["cloudflare", "local"]);
+const r2TokenPermissionSchema = z.enum([
+  "object-read-write",
+  "object-read-only",
+  "admin-read-write",
+]);
+
+// `tool(fn)` wraps a handler in the structured-error middleware and supplies
+// the Cloudflare-specific error mapper. The handler returns a raw value;
+// wrapToolHandler wraps it in `ok(...)`. If it throws, wrapToolHandler maps
+// the error through `mapCloudflareError` and returns a structured `fail(...)`.
+const tool = (handler) =>
+  wrapToolHandler(handler, { mapError: mapCloudflareError });
+
+// `clientTool(fn)` is the common shape — instantiate a client, call into it,
+// return the result.
+const clientTool = (fn) =>
+  tool(async (args = {}, extra) => {
+    const client = createCloudflareClient();
+    return fn(client, args, extra);
+  });
 
 const createServer = () => {
   const server = new McpServer(
@@ -61,35 +83,73 @@ const createServer = () => {
     },
     {
       instructions:
-        "Use these tools to inspect and manage Cloudflare DNS zones, DNS records, Cloudflare Tunnels, and R2 bucket/domain configuration. Prefer explicit CRUD operations over vague mutation requests.",
+        "Use these tools to inspect and manage Cloudflare DNS zones, DNS records, Cloudflare Tunnels, R2 bucket/domain configuration, and R2 S3-compatible access keys. Prefer explicit CRUD operations over vague mutation requests. When a call fails, the result's `remediation` field tells the user what to do next — relay it verbatim.",
     },
   );
-
-  const withClient = async (callback) => {
-    const client = createCloudflareClient();
-    return callback(client);
-  };
 
   server.registerTool(
     "getCloudflareAuthStatus",
     {
       description:
-        "Show whether Cloudflare credentials are configured without exposing token values.",
+        "Show whether Cloudflare credentials are configured without exposing token values. Includes declared scope requirements and (if connected) which scopes are present on the token.",
     },
-    async () => createJsonResult(getCloudflareAuthStatus()),
+    tool(async () => {
+      const status = getCloudflareAuthStatus();
+      const capability = capabilitiesFor("cloudflare");
+
+      if (!status.configured) {
+        return {
+          configured: false,
+          source: status.source,
+          defaultAccountId: status.defaultAccountId,
+          defaultZoneId: status.defaultZoneId,
+          apiBaseUrl: status.apiBaseUrl,
+          configPath: status.configPath,
+          required_scopes: capability?.scopes ?? [],
+          dashboard_token_url: capability?.dashboard_token_url,
+          bootstrap_note: capability?.bootstrap_note,
+        };
+      }
+
+      // Probe scopes against the active token.
+      let scopes_granted = [];
+      let scopes_missing = capability?.scopes ?? [];
+      let probe_error = null;
+      try {
+        const client = createCloudflareClient();
+        const validation = await client.validateToken();
+        const probe = probeScopes("cloudflare", validation.scopes ?? []);
+        scopes_granted = probe.granted;
+        scopes_missing = probe.missing;
+      } catch (err) {
+        probe_error = err?.message ?? "Could not probe scopes";
+      }
+
+      return {
+        configured: true,
+        source: status.source,
+        defaultAccountId: status.defaultAccountId,
+        defaultZoneId: status.defaultZoneId,
+        apiBaseUrl: status.apiBaseUrl,
+        configPath: status.configPath,
+        scopes_granted,
+        scopes_missing,
+        ...(probe_error ? { probe_error } : {}),
+        last_validated_at: new Date().toISOString(),
+      };
+    }),
   );
 
   server.registerTool(
     "connectCloudflare",
     {
       description:
-        "Open a browser-based guided setup flow for a Cloudflare API token.",
+        "Open a browser-based guided setup flow for a Cloudflare API token. Displays the required scopes before token paste and probes them after.",
     },
-    async () =>
-      createJsonResult({
-        ...(await runCloudflareBrowserAuthFlow()),
-        configPath: CLOUDFLARE_AUTH_CONFIG_PATH,
-      }),
+    tool(async () => ({
+      ...(await runCloudflareBrowserAuthFlow()),
+      configPath: CLOUDFLARE_AUTH_CONFIG_PATH,
+    })),
   );
 
   server.registerTool(
@@ -98,25 +158,28 @@ const createServer = () => {
       description:
         "Remove the locally stored Cloudflare token from Agentic Devtools.",
     },
-    async () => createJsonResult(await disconnectCloudflare()),
+    tool(async () => await disconnectCloudflare()),
   );
 
   server.registerTool(
     "testCloudflareConnection",
     {
       description:
-        "Verify that the configured Cloudflare token is active and optionally show the configured default account or zone context.",
+        "Verify that the configured Cloudflare token is active and report which declared scopes it carries.",
     },
-    async () =>
-      createJsonResult(
-        await withClient(async (client) => ({
-          ok: true,
-          tokenSource: client.auth.source,
-          defaultAccountId: client.auth.defaultAccountId,
-          defaultZoneId: client.auth.defaultZoneId,
-          validation: await client.validateToken(),
-        })),
-      ),
+    clientTool(async (client) => {
+      const validation = await client.validateToken();
+      const probe = probeScopes("cloudflare", validation.scopes ?? []);
+      return {
+        ok: validation.active === true,
+        tokenSource: client.auth.source,
+        defaultAccountId: client.auth.defaultAccountId,
+        defaultZoneId: client.auth.defaultZoneId,
+        validation,
+        scopes_granted: probe.granted,
+        scopes_missing: probe.missing,
+      };
+    }),
   );
 
   server.registerTool(
@@ -133,8 +196,7 @@ const createServer = () => {
         perPage: z.number().int().min(1).max(100).optional(),
       },
     },
-    async (args = {}) =>
-      createJsonResult(await withClient((client) => client.listTunnels(args))),
+    clientTool((client, args) => client.listTunnels(args)),
   );
 
   server.registerTool(
@@ -149,8 +211,7 @@ const createServer = () => {
         tunnelName: z.string().min(1).optional(),
       },
     },
-    async (args = {}) =>
-      createJsonResult(await withClient((client) => client.getTunnel(args))),
+    clientTool((client, args) => client.getTunnel(args)),
   );
 
   server.registerTool(
@@ -166,8 +227,7 @@ const createServer = () => {
         tunnelSecret: z.string().min(1).optional(),
       },
     },
-    async (args) =>
-      createJsonResult(await withClient((client) => client.createTunnel(args))),
+    clientTool((client, args) => client.createTunnel(args)),
   );
 
   server.registerTool(
@@ -184,8 +244,7 @@ const createServer = () => {
         tunnelSecret: z.string().min(1).optional(),
       },
     },
-    async (args) =>
-      createJsonResult(await withClient((client) => client.updateTunnel(args))),
+    clientTool((client, args) => client.updateTunnel(args)),
   );
 
   server.registerTool(
@@ -199,8 +258,7 @@ const createServer = () => {
         tunnelName: z.string().min(1).optional(),
       },
     },
-    async (args) =>
-      createJsonResult(await withClient((client) => client.deleteTunnel(args))),
+    clientTool((client, args) => client.deleteTunnel(args)),
   );
 
   server.registerTool(
@@ -215,8 +273,7 @@ const createServer = () => {
         tunnelName: z.string().min(1).optional(),
       },
     },
-    async (args) =>
-      createJsonResult(await withClient((client) => client.getTunnelToken(args))),
+    clientTool((client, args) => client.getTunnelToken(args)),
   );
 
   server.registerTool(
@@ -230,10 +287,7 @@ const createServer = () => {
         tunnelName: z.string().min(1).optional(),
       },
     },
-    async (args) =>
-      createJsonResult(
-        await withClient((client) => client.getTunnelConfiguration(args)),
-      ),
+    clientTool((client, args) => client.getTunnelConfiguration(args)),
   );
 
   server.registerTool(
@@ -249,10 +303,7 @@ const createServer = () => {
         config: z.record(z.string(), z.unknown()),
       },
     },
-    async (args) =>
-      createJsonResult(
-        await withClient((client) => client.updateTunnelConfiguration(args)),
-      ),
+    clientTool((client, args) => client.updateTunnelConfiguration(args)),
   );
 
   server.registerTool(
@@ -267,10 +318,7 @@ const createServer = () => {
         tunnelName: z.string().min(1).optional(),
       },
     },
-    async (args) =>
-      createJsonResult(
-        await withClient((client) => client.listTunnelConnections(args)),
-      ),
+    clientTool((client, args) => client.listTunnelConnections(args)),
   );
 
   server.registerTool(
@@ -286,10 +334,7 @@ const createServer = () => {
         clientId: z.string().min(1).optional(),
       },
     },
-    async (args) =>
-      createJsonResult(
-        await withClient((client) => client.cleanupTunnelConnections(args)),
-      ),
+    clientTool((client, args) => client.cleanupTunnelConnections(args)),
   );
 
   server.registerTool(
@@ -304,8 +349,7 @@ const createServer = () => {
         perPage: z.number().int().min(1).max(100).optional(),
       },
     },
-    async (args = {}) =>
-      createJsonResult(await withClient((client) => client.listZones(args))),
+    clientTool((client, args) => client.listZones(args)),
   );
 
   server.registerTool(
@@ -319,8 +363,7 @@ const createServer = () => {
         perPage: z.number().int().min(1).max(100).optional(),
       },
     },
-    async (args = {}) =>
-      createJsonResult(await withClient((client) => client.listAccounts(args))),
+    clientTool((client, args) => client.listAccounts(args)),
   );
 
   server.registerTool(
@@ -332,8 +375,7 @@ const createServer = () => {
         zoneId: z.string().min(1).optional(),
       },
     },
-    async ({ zoneId } = {}) =>
-      createJsonResult(await withClient((client) => client.getZone(zoneId))),
+    clientTool((client, { zoneId } = {}) => client.getZone(zoneId)),
   );
 
   server.registerTool(
@@ -351,8 +393,7 @@ const createServer = () => {
         perPage: z.number().int().min(1).max(100).optional(),
       },
     },
-    async (args = {}) =>
-      createJsonResult(await withClient((client) => client.listDnsRecords(args))),
+    clientTool((client, args) => client.listDnsRecords(args)),
   );
 
   server.registerTool(
@@ -365,8 +406,7 @@ const createServer = () => {
         recordId: z.string().min(1),
       },
     },
-    async (args) =>
-      createJsonResult(await withClient((client) => client.getDnsRecord(args))),
+    clientTool((client, args) => client.getDnsRecord(args)),
   );
 
   server.registerTool(
@@ -387,8 +427,7 @@ const createServer = () => {
         data: z.unknown().optional(),
       },
     },
-    async (args) =>
-      createJsonResult(await withClient((client) => client.createDnsRecord(args))),
+    clientTool((client, args) => client.createDnsRecord(args)),
   );
 
   server.registerTool(
@@ -410,8 +449,7 @@ const createServer = () => {
         data: z.unknown().optional(),
       },
     },
-    async (args) =>
-      createJsonResult(await withClient((client) => client.updateDnsRecord(args))),
+    clientTool((client, args) => client.updateDnsRecord(args)),
   );
 
   server.registerTool(
@@ -424,8 +462,7 @@ const createServer = () => {
         recordId: z.string().min(1),
       },
     },
-    async (args) =>
-      createJsonResult(await withClient((client) => client.deleteDnsRecord(args))),
+    clientTool((client, args) => client.deleteDnsRecord(args)),
   );
 
   server.registerTool(
@@ -439,8 +476,7 @@ const createServer = () => {
         jurisdiction: bucketJurisdictionSchema.optional(),
       },
     },
-    async (args = {}) =>
-      createJsonResult(await withClient((client) => client.listR2Buckets(args))),
+    clientTool((client, args) => client.listR2Buckets(args)),
   );
 
   server.registerTool(
@@ -454,8 +490,7 @@ const createServer = () => {
         jurisdiction: bucketJurisdictionSchema.optional(),
       },
     },
-    async (args) =>
-      createJsonResult(await withClient((client) => client.getR2Bucket(args))),
+    clientTool((client, args) => client.getR2Bucket(args)),
   );
 
   server.registerTool(
@@ -471,8 +506,7 @@ const createServer = () => {
         jurisdiction: bucketJurisdictionSchema.optional(),
       },
     },
-    async (args) =>
-      createJsonResult(await withClient((client) => client.createR2Bucket(args))),
+    clientTool((client, args) => client.createR2Bucket(args)),
   );
 
   server.registerTool(
@@ -488,8 +522,7 @@ const createServer = () => {
         jurisdiction: bucketJurisdictionSchema.optional(),
       },
     },
-    async (args) =>
-      createJsonResult(await withClient((client) => client.updateR2Bucket(args))),
+    clientTool((client, args) => client.updateR2Bucket(args)),
   );
 
   server.registerTool(
@@ -504,8 +537,7 @@ const createServer = () => {
         jurisdiction: bucketJurisdictionSchema.optional(),
       },
     },
-    async (args) =>
-      createJsonResult(await withClient((client) => client.deleteR2Bucket(args))),
+    clientTool((client, args) => client.deleteR2Bucket(args)),
   );
 
   server.registerTool(
@@ -518,10 +550,7 @@ const createServer = () => {
         bucketName: z.string().min(3),
       },
     },
-    async (args) =>
-      createJsonResult(
-        await withClient((client) => client.getR2ManagedDomain(args)),
-      ),
+    clientTool((client, args) => client.getR2ManagedDomain(args)),
   );
 
   server.registerTool(
@@ -535,10 +564,7 @@ const createServer = () => {
         enabled: z.boolean(),
       },
     },
-    async (args) =>
-      createJsonResult(
-        await withClient((client) => client.updateR2ManagedDomain(args)),
-      ),
+    clientTool((client, args) => client.updateR2ManagedDomain(args)),
   );
 
   server.registerTool(
@@ -551,10 +577,7 @@ const createServer = () => {
         bucketName: z.string().min(3),
       },
     },
-    async (args) =>
-      createJsonResult(
-        await withClient((client) => client.listR2CustomDomains(args)),
-      ),
+    clientTool((client, args) => client.listR2CustomDomains(args)),
   );
 
   server.registerTool(
@@ -568,10 +591,7 @@ const createServer = () => {
         domain: z.string().min(1),
       },
     },
-    async (args) =>
-      createJsonResult(
-        await withClient((client) => client.getR2CustomDomain(args)),
-      ),
+    clientTool((client, args) => client.getR2CustomDomain(args)),
   );
 
   server.registerTool(
@@ -588,10 +608,7 @@ const createServer = () => {
         enabled: z.boolean().optional(),
       },
     },
-    async (args) =>
-      createJsonResult(
-        await withClient((client) => client.createR2CustomDomain(args)),
-      ),
+    clientTool((client, args) => client.createR2CustomDomain(args)),
   );
 
   server.registerTool(
@@ -609,10 +626,7 @@ const createServer = () => {
         zoneName: z.string().min(1).optional(),
       },
     },
-    async (args) =>
-      createJsonResult(
-        await withClient((client) => client.updateR2CustomDomain(args)),
-      ),
+    clientTool((client, args) => client.updateR2CustomDomain(args)),
   );
 
   server.registerTool(
@@ -626,10 +640,26 @@ const createServer = () => {
         domain: z.string().min(1),
       },
     },
-    async (args) =>
-      createJsonResult(
-        await withClient((client) => client.deleteR2CustomDomain(args)),
-      ),
+    clientTool((client, args) => client.deleteR2CustomDomain(args)),
+  );
+
+  // R2 S3 access-key minting. The single biggest unblock for agent-driven
+  // R2 setup. Returns { accessKeyId, secretAccessKey, endpoint } — drop the
+  // accessKeyId + secretAccessKey straight into @aws-sdk/client-s3.
+  server.registerTool(
+    "createCloudflareR2ApiToken",
+    {
+      description:
+        "Mint an R2 S3-compatible access key scoped to a single bucket. Returns { accessKeyId, secretAccessKey, endpoint } usable directly with @aws-sdk/client-s3. Requires 'API Tokens:Write' on the calling Cloudflare token.",
+      inputSchema: {
+        bucketName: z.string().min(3),
+        accountId: z.string().min(1).optional(),
+        accountName: z.string().min(1).optional(),
+        permission: r2TokenPermissionSchema.optional(),
+        tokenName: z.string().min(1).optional(),
+      },
+    },
+    clientTool((client, args) => client.createR2ApiToken(args)),
   );
 
   return server;
@@ -654,15 +684,18 @@ if (args.includes("--auth-status")) {
 
 if (args.includes("--test-connection")) {
   const client = createCloudflareClient();
-  const result = await client.validateToken();
+  const validation = await client.validateToken();
+  const probe = probeScopes("cloudflare", validation.scopes ?? []);
   process.stdout.write(
     `${JSON.stringify(
       {
-        ok: true,
+        ok: validation.active === true,
         tokenSource: client.auth.source,
         defaultAccountId: client.auth.defaultAccountId,
         defaultZoneId: client.auth.defaultZoneId,
-        validation: result,
+        validation,
+        scopes_granted: probe.granted,
+        scopes_missing: probe.missing,
       },
       null,
       2,

@@ -3,6 +3,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { wrapToolHandler } from "../../core/result.mjs";
 import {
   AUTH_CONFIG_PATH,
   clearStoredAuthConfig,
@@ -10,6 +11,7 @@ import {
   runBrowserAuthFlow,
 } from "./auth.mjs";
 import { createResolvedNamecheapClient } from "./client.mjs";
+import { mapNamecheapError } from "./error-mapper.mjs";
 
 const HELP_TEXT = `Usage: agentic-devtools mcp namecheap
 
@@ -50,13 +52,11 @@ const recordSchema = z.object({
   tag: z.enum(["issue", "issuewild", "iodef"]).optional(),
 });
 
+// Back-compat shim. Existing handlers call createToolResult(value); the
+// auto-wrapping middleware on server.registerTool passes structured shapes
+// through unchanged.
 const createToolResult = (value) => ({
-  content: [
-    {
-      type: "text",
-      text: JSON.stringify(value, null, 2),
-    },
-  ],
+  content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
   structuredContent: value,
 });
 
@@ -68,9 +68,20 @@ const createServer = () => {
     },
     {
       instructions:
-        "Use these tools for Namecheap-managed domains and DNS. Prefer getDomainDns before mutating records because Namecheap setHosts replaces the full record set. Namecheap auth is API-key based, not OAuth.",
+        "Use these tools for Namecheap-managed domains and DNS. Prefer getDomainDns before mutating records because Namecheap setHosts replaces the full record set. Namecheap auth is API-key based, not OAuth. When a call fails, the result's `remediation` field tells the user what to do next.",
     },
   );
+
+  // Auto-wrap every handler with the structured-error middleware.
+  // mapNamecheapError understands Namecheap's XML error block plus auth/IP
+  // allowlist failure modes.
+  const originalRegisterTool = server.registerTool.bind(server);
+  server.registerTool = (name, spec, handler) =>
+    originalRegisterTool(
+      name,
+      spec,
+      wrapToolHandler(handler, { mapError: mapNamecheapError }),
+    );
 
   const withClient = async (callback) => {
     const client = await createResolvedNamecheapClient();

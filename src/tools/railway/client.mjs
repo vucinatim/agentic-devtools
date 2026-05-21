@@ -1,10 +1,15 @@
 import {
   DEFAULT_RAILWAY_API_ENDPOINT,
   getRailwayAuthStatus,
+  getRailwayBootstrapToken,
   resolveRailwayApiToken,
 } from "./auth.mjs";
 
-export { getRailwayAuthStatus, resolveRailwayApiToken } from "./auth.mjs";
+export {
+  getRailwayAuthStatus,
+  getRailwayBootstrapToken,
+  resolveRailwayApiToken,
+} from "./auth.mjs";
 
 export class RailwayApiError extends Error {
   constructor(message, details = {}) {
@@ -1478,4 +1483,156 @@ const formatRailwayErrorMessage = (payload, status) => {
   }
 
   return `Railway API request failed with HTTP ${status}`;
+};
+
+// =============================================================================
+// Bootstrap client — global account-token, used only at project-create time
+// =============================================================================
+//
+// Mirrors the Cloudflare bootstrap pattern. The bootstrap is an account-level
+// Railway token (broad reach across workspaces). It is used to list
+// workspaces/projects and to mint project-scoped working tokens via
+// projectTokenCreate. Working tokens are written per-project to
+// .zeroframe/credentials/railway.json so each Zero Frame project carries
+// credentials scoped to one Railway project.
+
+export const createRailwayBootstrapClient = ({
+  env = process.env,
+  fetchImpl = globalThis.fetch,
+} = {}) => {
+  const bootstrap = getRailwayBootstrapToken(env);
+  const endpoint =
+    String(env.RAILWAY_API_ENDPOINT ?? DEFAULT_RAILWAY_API_ENDPOINT) ||
+    DEFAULT_RAILWAY_API_ENDPOINT;
+
+  if (typeof fetchImpl !== "function") {
+    throw new Error("Railway bootstrap client requires a fetch implementation.");
+  }
+
+  const request = async (query, variables = {}) => {
+    if (!bootstrap.token) {
+      throw new RailwayApiError(
+        "Missing Railway bootstrap token. Run `bun zero connect railway` once per machine to create one.",
+      );
+    }
+    const response = await fetchImpl(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${bootstrap.token}`,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+    const payload = await response.json().catch(async () => response.text());
+    if (!response.ok || hasErrors(payload)) {
+      throw new RailwayApiError(
+        formatRailwayErrorMessage(payload, response.status),
+        {
+          status: response.status,
+          errors: hasErrors(payload) ? payload.errors : [],
+          payload,
+        },
+      );
+    }
+    return payload.data;
+  };
+
+  /**
+   * List the workspaces this bootstrap token can see. Used by the orchestrator
+   * (bun zero infra create railway) to ask the user where the new Railway
+   * project should live.
+   */
+  const listWorkspaces = async () => {
+    const data = await request(`
+      query RailwayBootstrapWorkspaces {
+        me {
+          name
+          email
+          workspaces { id name }
+        }
+      }
+    `);
+    return {
+      me: data.me,
+      workspaces: data.me?.workspaces ?? [],
+    };
+  };
+
+  /**
+   * List projects the bootstrap token can see across all workspaces (or
+   * scoped to one). Used to verify project existence after create + to allow
+   * minting working tokens for pre-existing projects.
+   */
+  const listProjects = async ({ workspaceId = null, first = 100 } = {}) => {
+    const data = await request(
+      `
+        query RailwayBootstrapProjects($workspaceId: String, $first: Int) {
+          projects(workspaceId: $workspaceId, first: $first) {
+            edges {
+              node {
+                id
+                name
+                workspace { id name }
+                createdAt
+              }
+            }
+          }
+        }
+      `,
+      { workspaceId, first },
+    );
+    return (data.projects?.edges ?? []).map((edge) => edge.node);
+  };
+
+  /**
+   * Mint a project-scoped working token via Railway's projectTokenCreate
+   * mutation. Returns the raw token string. The CALLER stores it in the
+   * project credential file.
+   */
+  const mintProjectToken = async ({
+    projectId,
+    environmentId,
+    name,
+  } = {}) => {
+    if (!projectId) {
+      throw new RailwayApiError(
+        "mintProjectToken requires projectId. Run listProjects first to discover ids.",
+      );
+    }
+    const data = await request(
+      `
+        mutation RailwayProjectTokenCreate($input: ProjectTokenCreateInput!) {
+          projectTokenCreate(input: $input)
+        }
+      `,
+      {
+        input: {
+          projectId,
+          ...(environmentId ? { environmentId } : {}),
+          name: name ?? `zero-frame-${projectId.slice(0, 8)}-${Date.now()}`,
+        },
+      },
+    );
+    const tokenValue = data?.projectTokenCreate;
+    if (!tokenValue || typeof tokenValue !== "string") {
+      throw new RailwayApiError(
+        "Railway did not return a project token value.",
+        { payload: data },
+      );
+    }
+    return {
+      tokenValue,
+      projectId,
+      environmentId: environmentId ?? null,
+      name: name ?? null,
+    };
+  };
+
+  return {
+    bootstrap,
+    endpoint,
+    listWorkspaces,
+    listProjects,
+    mintProjectToken,
+  };
 };

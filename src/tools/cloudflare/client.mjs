@@ -1,12 +1,19 @@
+import { createHash } from "node:crypto";
+import {
+  resolveSingleNamedResource as _resolveSingleNamedResource,
+  matchesSelector as _matchesSelector,
+} from "../../core/resolve-resource.mjs";
 import {
   DEFAULT_CLOUDFLARE_API_BASE_URL,
   getCloudflareAuthStatus,
+  getCloudflareBootstrapToken,
   resolveCloudflareAuthConfig,
 } from "./auth.mjs";
 
 export {
   DEFAULT_CLOUDFLARE_API_BASE_URL,
   getCloudflareAuthStatus,
+  getCloudflareBootstrapToken,
   resolveCloudflareAuthConfig,
 } from "./auth.mjs";
 
@@ -17,6 +24,13 @@ export class CloudflareApiError extends Error {
     this.details = details;
   }
 }
+
+// Local wrappers that bind the lifted helpers to CloudflareApiError so
+// resource-resolution errors carry the right class name.
+const resolveSingleNamedResource = (opts) =>
+  _resolveSingleNamedResource({ ...opts, ErrorClass: CloudflareApiError });
+
+const matchesSelector = _matchesSelector;
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -124,7 +138,121 @@ export const createCloudflareClient = ({
 
   const validateToken = async () => {
     const payload = await request("GET", "/user/tokens/verify");
-    return payload.result;
+    const result = payload.result ?? {};
+    // The verify endpoint includes a status + token id. Scopes themselves are
+    // not returned by /user/tokens/verify — to enumerate them, fetch the
+    // token detail. For the new error model we want a single call that
+    // returns { active, scopes } so the connect flow can probe.
+    let scopes = [];
+    if (result.id) {
+      try {
+        const detail = await request("GET", `/user/tokens/${result.id}`);
+        const policies = Array.isArray(detail?.result?.policies)
+          ? detail.result.policies
+          : [];
+        scopes = policies
+          .flatMap((policy) =>
+            Array.isArray(policy?.permission_groups)
+              ? policy.permission_groups.map((g) => g?.id ?? g?.name)
+              : [],
+          )
+          .filter(Boolean);
+      } catch {
+        // Token detail requires "User Details:Read" or self-token access.
+        // If it fails, fall back to "active" without scope detail.
+      }
+    }
+    return {
+      ...result,
+      active: result.status === "active" || result.status === "valid",
+      scopes,
+    };
+  };
+
+  /**
+   * Mint an R2 S3-compatible access key by creating a Cloudflare API token
+   * scoped to one bucket.
+   *
+   * Cloudflare wraps R2 S3 keys inside its generic API token system:
+   *   accessKeyId      = token.id
+   *   secretAccessKey  = sha256Hex(token.value)
+   *
+   * Requires "API Tokens:Write" on the calling token (declared in capabilities).
+   */
+  const createR2ApiToken = async ({
+    bucketName,
+    accountId,
+    accountName,
+    permission = "object-read-write",
+    tokenName,
+  } = {}) => {
+    const operation = "createR2ApiToken";
+    const resolvedBucketName = requireValue(bucketName, "bucketName", operation);
+    const resolvedAccountId = await resolveAccountId({
+      accountId,
+      accountName,
+      operation,
+    });
+
+    // Map our friendly permission names to Cloudflare permission-group IDs.
+    // These IDs are stable in Cloudflare's catalog. To enumerate the current
+    // set, GET /user/tokens/permission_groups (filterable by scope=r2).
+    const permissionGroups = {
+      "object-read-write": [
+        // "Workers R2 Storage Bucket Item Write" — read+write objects in a bucket
+        { id: "2efd5506f9c8494dacb1fa10a3e7d5b6" },
+      ],
+      "object-read-only": [
+        // "Workers R2 Storage Bucket Item Read"
+        { id: "6a018a9f2c8d44ed90d80a09f50e7b9c" },
+      ],
+      "admin-read-write": [
+        // "Workers R2 Storage Edit" (account-scoped)
+        { id: "2efd5506f9c8494dacb1fa10a3e7d5b6" },
+      ],
+    }[permission] ?? [{ id: "2efd5506f9c8494dacb1fa10a3e7d5b6" }];
+
+    const body = {
+      name: tokenName ?? `r2-${resolvedBucketName}-${Date.now()}`,
+      policies: [
+        {
+          effect: "allow",
+          permission_groups: permissionGroups,
+          resources: {
+            // Resource shape for an R2 bucket scope.
+            [`com.cloudflare.edge.r2.bucket.${resolvedAccountId}_default_${resolvedBucketName}`]:
+              "*",
+          },
+        },
+      ],
+    };
+
+    const payload = await request("POST", "/user/tokens", { body });
+    const token = payload.result ?? {};
+
+    const accessKeyId = token.id;
+    const rawValue = token.value;
+    if (!accessKeyId || !rawValue) {
+      throw new CloudflareApiError(
+        "Cloudflare returned a token without id/value — cannot derive R2 S3 credentials.",
+        { payload },
+      );
+    }
+
+    const secretAccessKey = createHash("sha256")
+      .update(rawValue)
+      .digest("hex");
+
+    return {
+      accountId: resolvedAccountId,
+      bucketName: resolvedBucketName,
+      accessKeyId,
+      secretAccessKey,
+      endpoint: `https://${resolvedAccountId}.r2.cloudflarestorage.com`,
+      tokenId: accessKeyId,
+      tokenName: token.name,
+      permission,
+    };
   };
 
   const listAccounts = async ({
@@ -1096,6 +1224,7 @@ export const createCloudflareClient = ({
     createR2CustomDomain,
     updateR2CustomDomain,
     deleteR2CustomDomain,
+    createR2ApiToken,
   };
 };
 
@@ -1139,21 +1268,6 @@ const formatCloudflareErrorMessage = (payload, status) => {
   return `Cloudflare API request failed with HTTP ${status}`;
 };
 
-const normalizeSelector = (value) =>
-  String(value ?? "")
-    .trim()
-    .toLowerCase();
-
-const matchesSelector = (candidate, requested) => {
-  const wanted = normalizeSelector(requested);
-  if (!wanted) {
-    return true;
-  }
-
-  const value = normalizeSelector(candidate);
-  return value.includes(wanted);
-};
-
 const buildAccountsFromZones = (zones) =>
   uniqueAccounts(
     (Array.isArray(zones) ? zones : [])
@@ -1186,70 +1300,190 @@ const normalizeTunnelConfigSource = (value) => {
   );
 };
 
-const resolveSingleNamedResource = ({
-  items,
-  requestedName,
-  getId,
-  getLabel,
-  resourceLabel,
-  operation,
-}) => {
-  const collection = Array.isArray(items) ? items : [];
+// `resolveSingleNamedResource`, `matchesSelector`, and `normalizeSelector`
+// were lifted to `src/core/resolve-resource.mjs` and are imported at the top
+// of this file.
 
-  if (collection.length === 0) {
-    return null;
+// =============================================================================
+// Bootstrap client — used only at project-init time
+// =============================================================================
+//
+// The bootstrap client uses a global user-level token whose only purpose is to
+// mint account-scoped working tokens via `POST /user/tokens`. It is NOT used
+// for day-to-day ops (DNS, R2 CRUD, etc.) — those use the working token in the
+// per-project credential store.
+//
+// Workflow:
+//   1. User runs `bun zero connect cloudflare` once per machine. Browser-based
+//      auth flow asks them to create a bootstrap via the "Create Additional
+//      Tokens" template (one-click in Cloudflare's dashboard).
+//   2. Bootstrap saved to ~/.config/agentic-devtools/cloudflare-bootstrap.json.
+//   3. When initialising a new project, the bootstrap client is used to:
+//        a. List accessible accounts (via /accounts).
+//        b. Ask user which account this project is for.
+//        c. Mint an account-scoped working token via mintWorkingToken().
+//        d. Working token is written to the project's credential store.
+//   4. After that, only the working token is used.
+
+/**
+ * Default permission groups for a Zero Frame working token. These are the
+ * Cloudflare permission-group IDs that the working token gets scoped to one
+ * account. They include API Tokens: Edit so the working token can mint
+ * per-bucket R2 S3 keys without touching the bootstrap.
+ *
+ * The ID strings here are stable Cloudflare permission-group IDs. Fetch the
+ * authoritative list with `GET /user/tokens/permission_groups`.
+ */
+export const DEFAULT_WORKING_TOKEN_PERMISSION_GROUPS = Object.freeze([
+  // Account: R2 Storage : Edit
+  { id: "2efd5506f9c8494dacb1fa10a3e7d5b6" },
+  // Account: Workers Scripts : Edit
+  { id: "e086da7e2179491d91ee5f35b3ca210a" },
+  // Zone: DNS : Edit
+  { id: "4755a26eedb94da69e1066d98aa820be" },
+  // Zone: Zone : Read
+  { id: "c8fed203ed3043cba015a93ad1616f1f" },
+  // User: API Tokens : Edit (so the working token can mint per-bucket R2 keys)
+  { id: "0aeacf61d2da4e168ec97f8efacf9b4f" },
+]);
+
+export const createCloudflareBootstrapClient = ({
+  env = process.env,
+  fetchImpl = globalThis.fetch,
+} = {}) => {
+  const bootstrap = getCloudflareBootstrapToken(env);
+  const apiBaseUrl =
+    (env.CLOUDFLARE_API_BASE_URL ?? DEFAULT_CLOUDFLARE_API_BASE_URL).replace(
+      /\/+$/,
+      "",
+    );
+
+  if (typeof fetchImpl !== "function") {
+    throw new Error("Cloudflare bootstrap client requires a fetch implementation.");
   }
 
-  if (!requestedName) {
-    if (collection.length === 1) {
-      return {
-        id: getId(collection[0]),
-        label: getLabel(collection[0]),
-      };
+  const request = async (method, pathname, { body } = {}) => {
+    if (!bootstrap.token) {
+      throw new CloudflareApiError(
+        "Missing Cloudflare bootstrap token. Run `bun zero connect cloudflare` once per machine to create one.",
+      );
+    }
+    const url = new URL(pathname.replace(/^\//, ""), `${apiBaseUrl}/`);
+    const init = {
+      method,
+      headers: {
+        Authorization: `Bearer ${bootstrap.token}`,
+        ...(body ? { "content-type": "application/json" } : {}),
+      },
+    };
+    if (body !== undefined) init.body = JSON.stringify(body);
+    const response = await fetchImpl(url, init);
+    const payload = await response.json().catch(async () => response.text());
+    if (!response.ok || !payload?.success) {
+      throw new CloudflareApiError(
+        formatCloudflareErrorMessage(payload, response.status),
+        {
+          status: response.status,
+          errors: Array.isArray(payload?.errors) ? payload.errors : [],
+          payload,
+        },
+      );
+    }
+    return payload;
+  };
+
+  /**
+   * Verify the bootstrap token is alive and probe its scopes.
+   */
+  const validate = async () => {
+    const payload = await request("GET", "/user/tokens/verify");
+    const result = payload.result ?? {};
+    return {
+      ...result,
+      active: result.status === "active" || result.status === "valid",
+      source: bootstrap.source,
+    };
+  };
+
+  /**
+   * List the accounts this bootstrap token has any visibility into. Used by
+   * the connect flow to ask the user which account a project is for.
+   */
+  const listAccessibleAccounts = async () => {
+    const payload = await request("GET", "/accounts");
+    return {
+      accounts: payload.result ?? [],
+      resultInfo: payload.result_info ?? null,
+    };
+  };
+
+  /**
+   * Mint a long-lived account-scoped working token. Returns the raw token
+   * value — the CALLER must store it securely (typically in
+   * <project>/.zeroframe/credentials/cloudflare.json) and discard the raw
+   * value from memory.
+   *
+   * The minted token's scopes are the supplied permission groups, locked to
+   * the supplied account via the resources field. If no permission groups are
+   * given, the Zero Frame defaults are used (R2 + Workers + DNS + Zone +
+   * API Tokens, all account-scoped).
+   */
+  const mintWorkingToken = async ({
+    accountId,
+    accountName,
+    permissionGroups,
+    tokenName,
+  } = {}) => {
+    if (!accountId) {
+      throw new CloudflareApiError(
+        "mintWorkingToken requires accountId. Call listAccessibleAccounts first to discover available accounts.",
+      );
     }
 
-    throw new CloudflareApiError(
-      `${operation} needs a ${resourceLabel} selector because multiple ${resourceLabel}s are accessible: ${collection
-        .slice(0, 10)
-        .map((item) => getLabel(item))
-        .join(", ")}.`,
-    );
-  }
+    const groups = Array.isArray(permissionGroups) && permissionGroups.length > 0
+      ? permissionGroups
+      : [...DEFAULT_WORKING_TOKEN_PERMISSION_GROUPS];
 
-  const exactMatches = collection.filter(
-    (item) => normalizeSelector(getLabel(item)) === normalizeSelector(requestedName),
-  );
+    const name =
+      tokenName ?? `zero-frame-${(accountName ?? accountId).slice(0, 24)}-${Date.now()}`;
 
-  if (exactMatches.length === 1) {
-    return {
-      id: getId(exactMatches[0]),
-      label: getLabel(exactMatches[0]),
+    const body = {
+      name,
+      policies: [
+        {
+          effect: "allow",
+          permission_groups: groups,
+          resources: {
+            [`com.cloudflare.api.account.${accountId}`]: "*",
+          },
+        },
+      ],
     };
-  }
 
-  const fuzzyMatches = collection.filter((item) =>
-    matchesSelector(getLabel(item), requestedName),
-  );
+    const payload = await request("POST", "/user/tokens", { body });
+    const token = payload.result ?? {};
+    if (!token.value || !token.id) {
+      throw new CloudflareApiError(
+        "Cloudflare did not return id+value for the new token.",
+        { payload },
+      );
+    }
 
-  if (fuzzyMatches.length === 1) {
     return {
-      id: getId(fuzzyMatches[0]),
-      label: getLabel(fuzzyMatches[0]),
+      tokenId: token.id,
+      tokenValue: token.value,
+      tokenName: token.name,
+      accountId,
+      accountName,
+      permission_group_ids: groups.map((g) => g.id),
     };
-  }
+  };
 
-  if (exactMatches.length > 1 || fuzzyMatches.length > 1) {
-    const matches = (exactMatches.length > 1 ? exactMatches : fuzzyMatches)
-      .slice(0, 10)
-      .map((item) => getLabel(item))
-      .join(", ");
-
-    throw new CloudflareApiError(
-      `${operation} found multiple matching ${resourceLabel}s for "${requestedName}": ${matches}. Use the explicit ${resourceLabel} id if needed.`,
-    );
-  }
-
-  throw new CloudflareApiError(
-    `${operation} could not find a matching ${resourceLabel} for "${requestedName}".`,
-  );
+  return {
+    bootstrap,
+    apiBaseUrl,
+    validate,
+    listAccessibleAccounts,
+    mintWorkingToken,
+  };
 };

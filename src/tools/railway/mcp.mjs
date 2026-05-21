@@ -3,6 +3,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { capabilitiesFor } from "../../core/capabilities.mjs";
+import { wrapToolHandler } from "../../core/result.mjs";
 import {
   disconnectRailway,
   RAILWAY_AUTH_CONFIG_PATH,
@@ -12,6 +14,7 @@ import {
   createRailwayClient,
   getRailwayAuthStatus,
 } from "./client.mjs";
+import { mapRailwayError } from "./error-mapper.mjs";
 
 const HELP_TEXT = `Usage: agentic-devtools mcp railway
 
@@ -30,13 +33,24 @@ Account and workspace tokens can inspect and manage broader Railway resources.
 If env vars are not provided, use the connectRailway tool to open the browser-based setup flow and save a local Railway token.
 `;
 
+// `tool(fn)` wraps a handler in the structured-error middleware with the
+// Railway-specific error mapper. Handlers return raw values; the wrapper
+// applies `ok(...)` on success and structured `fail(...)` on throw.
+const tool = (handler) =>
+  wrapToolHandler(handler, { mapError: mapRailwayError });
+
+// `clientTool(fn)` is the common shape for handlers that need a client.
+const clientTool = (fn) =>
+  tool(async (args = {}, extra) => {
+    const client = createRailwayClient();
+    return fn(client, args, extra);
+  });
+
+// Back-compat shim: existing in-file code calls `createToolResult(value)` —
+// the wrapping middleware passes structured results through unchanged, so we
+// emit the same shape as `ok(value)`.
 const createToolResult = (value) => ({
-  content: [
-    {
-      type: "text",
-      text: JSON.stringify(value, null, 2),
-    },
-  ],
+  content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
   structuredContent: value,
 });
 
@@ -48,9 +62,21 @@ const createServer = () => {
     },
     {
       instructions:
-        "Use these tools to inspect and manage Railway projects, environments, services, domains, variables, deployments, and volumes through the documented public API. Prefer read tools first, then use targeted write tools. Delete tools are destructive and should be used deliberately.",
+        "Use these tools to inspect and manage Railway projects, environments, services, domains, variables, deployments, and volumes through the documented public API. Prefer read tools first, then use targeted write tools. Delete tools are destructive and should be used deliberately. When a call fails, the result's `remediation` field tells the user what to do next — relay it verbatim.",
     },
   );
+
+  // Auto-wrap every handler registered on this server with the structured
+  // error middleware. Existing handlers call createToolResult(value) which
+  // returns an already-wrapped shape; the middleware detects that and
+  // passes it through unchanged. Thrown errors get mapped via mapRailwayError.
+  const originalRegisterTool = server.registerTool.bind(server);
+  server.registerTool = (name, spec, handler) =>
+    originalRegisterTool(
+      name,
+      spec,
+      wrapToolHandler(handler, { mapError: mapRailwayError }),
+    );
 
   const withClient = async (callback) => {
     const client = createRailwayClient();
