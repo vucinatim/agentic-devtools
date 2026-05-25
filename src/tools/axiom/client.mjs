@@ -152,7 +152,15 @@ export const createAxiomClient = ({
       ...(startTime ? { startTime: toIsoTimestamp(startTime) } : {}),
       ...(endTime ? { endTime: toIsoTimestamp(endTime) } : {}),
     };
-    const result = await request("POST", "/v1/datasets/_apl", { body });
+    // Axiom requires the `format` query parameter on /v1/datasets/_apl:
+    //   - "legacy"  → response includes top-level `matches` array (what we want)
+    //   - "tabular" → response is a tabular `tables[]` shape; matches absent
+    // We default to "legacy" so callers get rows in the shape this method
+    // documents.
+    const result = await request("POST", "/v1/datasets/_apl", {
+      body,
+      query: { format: "legacy" },
+    });
     // Axiom's APL response shape:
     //   { tables: [{ name, sources, fields, columns, range }], matches?: [...]
     //     status: { elapsedTime, ... }, request: { ... } }
@@ -230,6 +238,272 @@ export const createAxiomClient = ({
     };
   };
 
+  // -- Dashboards ---------------------------------------------------------
+  //
+  // Axiom's POST /v2/dashboards expects the dashboard JSON wrapped in a
+  // `{ dashboard: {...} }` envelope, plus `overwrite` and `version` controls
+  // for optimistic concurrency. All single-dashboard operations key on `uid`
+  // (a stable user-set or auto-generated identifier), via the path
+  // `/v2/dashboards/uid/{uid}` — NOT the internal `id` field despite what
+  // the public docs imply.
+  //
+  // Version handling has a JS-specific wrinkle: Axiom serializes `version`
+  // as int64 (numbers like 1779730400809849898) which exceed JS Number's
+  // 2^53 safe range. Standard JSON.parse silently rounds, so we can't
+  // round-trip the exact version back to PUT (Axiom rejects with "version
+  // mismatch"). Two consequences:
+  //
+  //  - updateDashboard() callers who care about optimistic concurrency
+  //    MUST construct the version as a BigInt and serialize separately, OR
+  //    use `overwrite: true` to skip the check.
+  //  - The granular helpers (addChart / updateChart / removeChart) default
+  //    to `overwrite: true` — single-agent dashboard edits don't need
+  //    concurrency control, and the tradeoff (last-write-wins if two agents
+  //    race) is acceptable. If/when we add multi-agent dashboard editing
+  //    we'll swap these to a BigInt-preserving JSON path or use Axiom's
+  //    PATCH endpoint (single-chart, version-aware).
+
+  /**
+   * Wrap a dashboard payload in the API's expected envelope. `overwrite`
+   * defaults false; `version` is required on updates (when known).
+   */
+  const wrapDashboardEnvelope = (dashboard, { version, overwrite } = {}) => {
+    const body = { dashboard };
+    if (version !== undefined) body.version = version;
+    if (overwrite) body.overwrite = true;
+    return body;
+  };
+
+  /**
+   * Create a new dashboard. Required: `name`, `owner` (use the constant
+   * `"X-AXIOM-EVERYONE"` for org-wide access). Optional but recommended:
+   * `description`, `charts[]`, `layout[]`, `uid` (for stable lookup).
+   *
+   * Axiom requires `schemaVersion: 2`, `timeWindowStart`, `timeWindowEnd`,
+   * `refreshTime` — we fill in sensible defaults if omitted so callers
+   * only have to supply meaningful fields.
+   */
+  const createDashboard = async (dashboard = {}) => {
+    if (!dashboard.name) {
+      throw new AxiomApiError("createDashboard requires { name }.");
+    }
+    const body = wrapDashboardEnvelope({
+      owner: "X-AXIOM-EVERYONE",
+      schemaVersion: 2,
+      refreshTime: 60,
+      timeWindowStart: "qr-now-1h",
+      timeWindowEnd: "qr-now",
+      charts: [],
+      layout: [],
+      ...dashboard,
+    });
+    return request("POST", "/v2/dashboards", { body });
+  };
+
+  /** List all dashboards visible to this token. */
+  const listDashboards = async () => {
+    const result = await request("GET", "/v2/dashboards");
+    const dashboards = Array.isArray(result) ? result : (result?.dashboards ?? []);
+    return { dashboards };
+  };
+
+  /**
+   * Fetch one dashboard by its `uid`. Axiom's single-dashboard endpoints all
+   * key on `uid` — NOT the auto-assigned `id` field, despite what the public
+   * docs imply. POST returns both fields; downstream calls (get/update/
+   * delete/patch) must use `uid`.
+   *
+   * Accepts `uid` (preferred) OR `id` (treated as uid alias for ergonomics).
+   * Response includes the dashboard payload, a `version` integer (required
+   * for safe updates), and metadata.
+   */
+  const getDashboard = async ({ uid, id } = {}) => {
+    const lookupUid = uid ?? id;
+    if (!lookupUid) {
+      throw new AxiomApiError("getDashboard requires { uid }.");
+    }
+    return request(
+      "GET",
+      `/v2/dashboards/uid/${encodeURIComponent(lookupUid)}`,
+    );
+  };
+
+  /**
+   * Find a dashboard by its custom `uid`, returning null when not found
+   * rather than throwing. Issues a direct GET; swallows the 404.
+   * Useful for idempotent provisioning flows ("does my dashboard exist yet?").
+   */
+  const findDashboardByUid = async ({ uid } = {}) => {
+    if (!uid) {
+      throw new AxiomApiError("findDashboardByUid requires { uid }.");
+    }
+    try {
+      return await getDashboard({ uid });
+    } catch (error) {
+      if (
+        error instanceof AxiomApiError &&
+        (error.details?.status === 404 ||
+          /not found/i.test(error.message ?? ""))
+      ) {
+        return null;
+      }
+      throw error;
+    }
+  };
+
+  /**
+   * Replace a dashboard's contents. Caller supplies the full new dashboard
+   * payload + the `version` they received from a prior GET. Returns the new
+   * version. Pass `overwrite: true` to bypass version-check (last-write-wins).
+   *
+   * Accepts `uid` (preferred) OR `id` (treated as uid alias for ergonomics).
+   */
+  const updateDashboard = async ({
+    uid,
+    id,
+    version,
+    overwrite = false,
+    ...dashboard
+  } = {}) => {
+    const lookupUid = uid ?? id;
+    if (!lookupUid) {
+      throw new AxiomApiError("updateDashboard requires { uid }.");
+    }
+    if (!overwrite && version === undefined) {
+      throw new AxiomApiError(
+        "updateDashboard requires { version } from a prior GET (or pass overwrite: true to skip the check).",
+      );
+    }
+    const body = wrapDashboardEnvelope(
+      { schemaVersion: 2, ...dashboard },
+      { version, overwrite },
+    );
+    return request(
+      "PUT",
+      `/v2/dashboards/uid/${encodeURIComponent(lookupUid)}`,
+      { body },
+    );
+  };
+
+  /**
+   * Delete a dashboard by uid.
+   * Accepts `uid` (preferred) OR `id` (treated as uid alias for ergonomics).
+   */
+  const deleteDashboard = async ({ uid, id } = {}) => {
+    const lookupUid = uid ?? id;
+    if (!lookupUid) {
+      throw new AxiomApiError("deleteDashboard requires { uid }.");
+    }
+    await request(
+      "DELETE",
+      `/v2/dashboards/uid/${encodeURIComponent(lookupUid)}`,
+    );
+    return { uid: lookupUid, deleted: true };
+  };
+
+  /**
+   * Append a chart to an existing dashboard. Reads current dashboard, appends
+   * the chart (and its layout entry) to the arrays, writes the dashboard
+   * back with the current version. Returns the new version.
+   *
+   * Layout: if `layout` is omitted, we generate a sensible default — full
+   * width, 4 rows tall, stacked under the existing charts.
+   */
+  const addChart = async ({ dashboardUid, dashboardId, chart, layout } = {}) => {
+    const lookupUid = dashboardUid ?? dashboardId;
+    if (!lookupUid) {
+      throw new AxiomApiError("addChart requires { dashboardUid }.");
+    }
+    if (!chart || !chart.id || !chart.type) {
+      throw new AxiomApiError("addChart requires { chart: { id, type, ... } }.");
+    }
+    const current = await getDashboard({ uid: lookupUid });
+    // Axiom serializes `version` as a STRING inside nested `dashboard.version`
+    // but as a NUMBER (int64) at the top level — and the API requires the
+    // numeric form on PUT. We strip the nested string version when spreading
+    // to avoid clobbering our top-level numeric one.
+    const { version: _nestedVersion, ...dashboard } = current?.dashboard ?? {};
+    const charts = [...(dashboard.charts ?? []), chart];
+    const existingLayout = dashboard.layout ?? [];
+    const nextY = existingLayout.reduce(
+      (max, l) => Math.max(max, (l.y ?? 0) + (l.h ?? 0)),
+      0,
+    );
+    const newLayout = [
+      ...existingLayout,
+      layout ?? { i: chart.id, x: 0, y: nextY, w: 12, h: 4 },
+    ];
+    return updateDashboard({
+      uid: lookupUid,
+      overwrite: true,
+      ...dashboard,
+      charts,
+      layout: newLayout,
+    });
+  };
+
+  /**
+   * Patch a single chart in a dashboard by chart id. `partial` is merged on
+   * top of the existing chart. Reads current dashboard, mutates the matching
+   * chart, writes back.
+   */
+  const updateChart = async ({
+    dashboardUid,
+    dashboardId,
+    chartId,
+    ...partial
+  } = {}) => {
+    const lookupUid = dashboardUid ?? dashboardId;
+    if (!lookupUid || !chartId) {
+      throw new AxiomApiError(
+        "updateChart requires { dashboardUid, chartId, ...partial }.",
+      );
+    }
+    const current = await getDashboard({ uid: lookupUid });
+    // See addChart for why we strip nested `version` (string vs number).
+    const { version: _nestedVersion, ...dashboard } = current?.dashboard ?? {};
+    const existingChart = (dashboard.charts ?? []).find((c) => c.id === chartId);
+    if (!existingChart) {
+      throw new AxiomApiError(
+        `updateChart: no chart with id "${chartId}" in dashboard "${lookupUid}".`,
+      );
+    }
+    const charts = (dashboard.charts ?? []).map((c) =>
+      c.id === chartId ? { ...c, ...partial } : c,
+    );
+    return updateDashboard({
+      uid: lookupUid,
+      overwrite: true,
+      ...dashboard,
+      charts,
+    });
+  };
+
+  /**
+   * Remove a chart (and its layout entry) from a dashboard. No-op if the
+   * chart id isn't present.
+   */
+  const removeChart = async ({ dashboardUid, dashboardId, chartId } = {}) => {
+    const lookupUid = dashboardUid ?? dashboardId;
+    if (!lookupUid || !chartId) {
+      throw new AxiomApiError(
+        "removeChart requires { dashboardUid, chartId }.",
+      );
+    }
+    const current = await getDashboard({ uid: lookupUid });
+    // See addChart for why we strip nested `version` (string vs number).
+    const { version: _nestedVersion, ...dashboard } = current?.dashboard ?? {};
+    const charts = (dashboard.charts ?? []).filter((c) => c.id !== chartId);
+    const layout = (dashboard.layout ?? []).filter((l) => l.i !== chartId);
+    return updateDashboard({
+      uid: lookupUid,
+      overwrite: true,
+      ...dashboard,
+      charts,
+      layout,
+    });
+  };
+
   return {
     auth,
     apiBaseUrl,
@@ -240,6 +514,16 @@ export const createAxiomClient = ({
     query,
     recentErrors,
     getTraceById,
+    // Dashboards
+    createDashboard,
+    listDashboards,
+    getDashboard,
+    findDashboardByUid,
+    updateDashboard,
+    deleteDashboard,
+    addChart,
+    updateChart,
+    removeChart,
   };
 };
 

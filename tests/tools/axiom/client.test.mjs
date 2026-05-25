@@ -126,7 +126,7 @@ test("query POSTs APL with startTime/endTime conversion", async () => {
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].method, "POST");
-  assert.match(calls[0].url, /\/v1\/datasets\/_apl$/);
+  assert.match(calls[0].url, /\/v1\/datasets\/_apl\?format=legacy$/);
   const body = JSON.parse(calls[0].body);
   assert.match(body.apl, /my-app/);
   // The relative startTime conversion uses the real Date.now at runtime; we
