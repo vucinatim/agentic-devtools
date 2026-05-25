@@ -741,6 +741,38 @@ const createServer = () => {
   );
 
   server.registerTool(
+    "getRailwayCustomDomain",
+    {
+      description:
+        "Read a custom Railway domain's full status — including `requiredDnsRecords` array combining the rotating CNAME target (which the user MUST point their DNS at) AND the _railway-verify TXT record (required for cert issuance). USE THIS to check whether DNS is set up correctly before waiting for the cert.",
+      inputSchema: {
+        customDomainId: z.string().min(1),
+      },
+    },
+    async ({ customDomainId }) =>
+      createToolResult(
+        await withClient((client) => client.getCustomDomain(customDomainId)),
+      ),
+  );
+
+  server.registerTool(
+    "waitForRailwayCustomDomain",
+    {
+      description:
+        "Poll a Railway custom-domain until its certificate reaches CERTIFICATE_STATUS_TYPE_VALID, or until timeout. Returns the final domain state. Use this AFTER applying DNS records so the agent doesn't have to invent its own polling loop.",
+      inputSchema: {
+        customDomainId: z.string().min(1),
+        timeoutMs: z.number().int().min(1000).optional(),
+        pollIntervalMs: z.number().int().min(1000).optional(),
+      },
+    },
+    async (args) =>
+      createToolResult(
+        await withClient((client) => client.waitForCustomDomain(args)),
+      ),
+  );
+
+  server.registerTool(
     "createRailwayVolume",
     {
       description:

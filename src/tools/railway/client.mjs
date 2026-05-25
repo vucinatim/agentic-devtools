@@ -1170,12 +1170,121 @@ export const createRailwayClient = ({
           customDomainCreate(input: $input) {
             id
             domain
+            status {
+              cdnProvider
+              certificateStatus
+              dnsRecords {
+                hostlabel
+                fqdn
+                purpose
+                recordType
+                requiredValue
+                currentValue
+                status
+              }
+              verificationDnsHost
+            }
           }
         }
       `,
       { input: compactObject(input) },
     );
-    return domain.customDomainCreate;
+    const created = domain.customDomainCreate ?? {};
+
+    // Surface the required DNS records front-and-center. Railway needs BOTH:
+    //   1. A CNAME at the domain pointing to a rotating short hostname
+    //      (status.dnsRecords[].requiredValue when purpose === "TRAFFIC_ROUTING")
+    //   2. A TXT record at `_railway-verify.<subdomain>` for ownership
+    //      proof (status.verificationDnsHost when present)
+    //
+    // Both must exist before Railway will issue a TLS cert. This was a
+    // 30-minute footgun in Zero Frame test #2 — the wrapper now surfaces them.
+    const requiredDnsRecords = buildRequiredDnsRecords(created);
+
+    return {
+      ...created,
+      requiredDnsRecords,
+    };
+  };
+
+  const getCustomDomain = async (customDomainId) => {
+    if (!customDomainId) {
+      throw new RailwayApiError(
+        "getCustomDomain requires customDomainId.",
+      );
+    }
+    const data = await request(
+      `
+        query RailwayCustomDomain($id: String!) {
+          customDomain(id: $id) {
+            id
+            domain
+            environmentId
+            projectId
+            status {
+              cdnProvider
+              certificateStatus
+              dnsRecords {
+                hostlabel
+                fqdn
+                purpose
+                recordType
+                requiredValue
+                currentValue
+                status
+              }
+              verificationDnsHost
+            }
+          }
+        }
+      `,
+      { id: customDomainId },
+    );
+    const domain = data.customDomain ?? null;
+    if (!domain) {
+      throw new RailwayApiError(
+        `Custom domain ${customDomainId} not found.`,
+      );
+    }
+    return {
+      ...domain,
+      requiredDnsRecords: buildRequiredDnsRecords(domain),
+    };
+  };
+
+  const waitForCustomDomain = async ({
+    customDomainId,
+    timeoutMs = 600_000,
+    pollIntervalMs = 5_000,
+  } = {}) => {
+    const start = Date.now();
+    let lastStatus = null;
+    while (Date.now() - start < timeoutMs) {
+      const domain = await getCustomDomain(customDomainId);
+      lastStatus = domain.status?.certificateStatus;
+      if (lastStatus === "CERTIFICATE_STATUS_TYPE_VALID") {
+        return {
+          ok: true,
+          customDomainId,
+          domain,
+          waitedMs: Date.now() - start,
+        };
+      }
+      if (
+        lastStatus === "CERTIFICATE_STATUS_TYPE_FAILED" ||
+        lastStatus === "CERTIFICATE_STATUS_TYPE_REVOKED"
+      ) {
+        throw new RailwayApiError(
+          `Custom domain cert reached terminal failure state: ${lastStatus}. Inspect via getCustomDomain.`,
+          { status: 400, errors: [{ message: lastStatus }] },
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    }
+    throw new RailwayApiError(
+      `Custom domain cert did not reach VALID within ${timeoutMs}ms (last status: ${lastStatus}). Check DNS records via getCustomDomain.`,
+      { status: 504, errors: [{ message: "wait timeout" }] },
+    );
   };
 
   const updateCustomDomain = async ({
@@ -1339,6 +1448,8 @@ export const createRailwayClient = ({
     updateServiceDomain,
     deleteServiceDomain,
     createCustomDomain,
+    getCustomDomain,
+    waitForCustomDomain,
     updateCustomDomain,
     deleteCustomDomain,
     createVolume,
@@ -1470,6 +1581,49 @@ const hasErrors = (payload) =>
   payload !== null &&
   "errors" in payload &&
   Array.isArray(payload.errors);
+
+/**
+ * Build a flat array of DNS records the user MUST add to the domain registrar
+ * before Railway will issue a TLS cert. Pulls from BOTH:
+ *   - status.dnsRecords[] (the routing CNAME — rotates on every recreate)
+ *   - status.verificationDnsHost (the _railway-verify TXT for ownership proof)
+ *
+ * Returns: [{ type, name, value, purpose }] in a stable order suitable for
+ * printing directly to the user.
+ */
+const buildRequiredDnsRecords = (customDomain) => {
+  const status = customDomain?.status ?? {};
+  const records = [];
+
+  // 1. The rotating CNAME (when status.dnsRecords[].requiredValue is set).
+  for (const r of status.dnsRecords ?? []) {
+    if (!r?.requiredValue) continue;
+    records.push({
+      type: r.recordType ?? "CNAME",
+      name: r.fqdn ?? r.hostlabel ?? customDomain?.domain ?? "<domain>",
+      value: r.requiredValue,
+      purpose: r.purpose ?? "TRAFFIC_ROUTING",
+      currentValue: r.currentValue ?? null,
+      status: r.status ?? null,
+    });
+  }
+
+  // 2. The TXT verification record.
+  if (status.verificationDnsHost) {
+    const fqdn = customDomain?.domain ?? "";
+    // Railway docs show the TXT lives at `_railway-verify.<subdomain>` but the
+    // host they return in verificationDnsHost is the full short form. We
+    // surface what Railway returns plus a guess at the host label.
+    records.push({
+      type: "TXT",
+      name: fqdn ? `_railway-verify.${fqdn.split(".")[0]}.${fqdn.split(".").slice(1).join(".")}` : "_railway-verify.<subdomain>",
+      value: status.verificationDnsHost,
+      purpose: "DOMAIN_VERIFICATION",
+    });
+  }
+
+  return records;
+};
 
 const formatRailwayErrorMessage = (payload, status) => {
   if (hasErrors(payload)) {
