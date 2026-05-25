@@ -9,6 +9,8 @@ const usage = () => `Usage:
   agentic-devtools mcp <cloudflare|namecheap|railway|npm>
   agentic-devtools connect <cloudflare|namecheap|railway|npm>
   agentic-devtools bootstrap <cloudflare|railway>    (save global bootstrap token)
+  agentic-devtools list-permission-groups cloudflare [filter]
+                                                     (lists Cloudflare's current permission catalog)
   agentic-devtools list-accounts cloudflare          (uses cloudflare bootstrap; lists accessible accounts)
   agentic-devtools list-workspaces railway           (uses railway bootstrap; lists workspaces)
   agentic-devtools list-projects railway             [--workspace-id <id>]
@@ -155,6 +157,45 @@ if (args[0] === "bootstrap") {
     process.exit(0);
   }
   throw new Error("bootstrap expects: cloudflare | railway");
+}
+
+// ---- list-permission-groups (cloudflare diagnostic) ------------------------
+// Useful when permission-group IDs drift (which they do — see 0.1.9 → 0.1.10).
+// Lists Cloudflare's current catalog so we can audit our resolver fallbacks.
+if (args[0] === "list-permission-groups") {
+  const toolName = args[1];
+  if (toolName === "cloudflare") {
+    const { getCloudflarePermissionGroups } = await import(
+      "./core/permission-group-resolver.mjs"
+    );
+    const { getCloudflareBootstrapToken } = await import(
+      "./tools/cloudflare/auth.mjs"
+    );
+    const bootstrap = getCloudflareBootstrapToken();
+    if (!bootstrap.token) {
+      throw new Error(
+        "list-permission-groups cloudflare requires a bootstrap token. Run `agentic-devtools bootstrap cloudflare` first.",
+      );
+    }
+    const groups = await getCloudflarePermissionGroups({
+      authToken: bootstrap.token,
+    });
+    const rest = args.slice(2);
+    const filter = rest.find((a) => !a.startsWith("--"));
+    const filtered = filter
+      ? groups.filter((g) =>
+          String(g.name).toLowerCase().includes(filter.toLowerCase()),
+        )
+      : groups;
+    printJson({
+      total: groups.length,
+      shown: filtered.length,
+      filter: filter ?? null,
+      groups: filtered,
+    });
+    process.exit(0);
+  }
+  throw new Error("list-permission-groups expects: cloudflare");
 }
 
 // ---- list-accounts (uses bootstrap) -----------------------------------------

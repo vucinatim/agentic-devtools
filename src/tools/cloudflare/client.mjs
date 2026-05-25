@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 import {
+  getCloudflarePermissionGroups,
+  resolveCloudflarePermissionGroups,
+} from "../../core/permission-group-resolver.mjs";
+import {
   resolveSingleNamedResource as _resolveSingleNamedResource,
   matchesSelector as _matchesSelector,
 } from "../../core/resolve-resource.mjs";
@@ -16,6 +20,10 @@ export {
   getCloudflareBootstrapToken,
   resolveCloudflareAuthConfig,
 } from "./auth.mjs";
+
+export {
+  getCloudflarePermissionGroups,
+} from "../../core/permission-group-resolver.mjs";
 
 export class CloudflareApiError extends Error {
   constructor(message, details = {}) {
@@ -194,23 +202,27 @@ export const createCloudflareClient = ({
       operation,
     });
 
-    // Map our friendly permission names to Cloudflare permission-group IDs.
-    // These IDs are stable in Cloudflare's catalog. To enumerate the current
-    // set, GET /user/tokens/permission_groups (filterable by scope=r2).
-    const permissionGroups = {
+    // Map friendly permission names → Cloudflare permission group names.
+    // The resolver looks up current IDs from Cloudflare's live catalog at
+    // call time (cached 24h), so we don't drift again like 0.1.9 did with
+    // hardcoded IDs.
+    const permissionSpecs = {
       "object-read-write": [
-        // "Workers R2 Storage Bucket Item Write" — read+write objects in a bucket
-        { id: "2efd5506f9c8494dacb1fa10a3e7d5b6" },
+        { name: "Workers R2 Storage Bucket Item Write" },
       ],
       "object-read-only": [
-        // "Workers R2 Storage Bucket Item Read"
-        { id: "6a018a9f2c8d44ed90d80a09f50e7b9c" },
+        { name: "Workers R2 Storage Bucket Item Read" },
       ],
       "admin-read-write": [
-        // "Workers R2 Storage Edit" (account-scoped)
-        { id: "2efd5506f9c8494dacb1fa10a3e7d5b6" },
+        { name: "Workers R2 Storage Write" }, // account-scoped
       ],
-    }[permission] ?? [{ id: "2efd5506f9c8494dacb1fa10a3e7d5b6" }];
+    }[permission] ?? [{ name: "Workers R2 Storage Bucket Item Write" }];
+
+    const resolvedGroups = await resolveCloudflarePermissionGroups(
+      permissionSpecs,
+      { authToken: auth.token, apiBaseUrl, fetchImpl },
+    );
+    const permissionGroups = resolvedGroups.map((g) => ({ id: g.id }));
 
     const body = {
       name: tokenName ?? `r2-${resolvedBucketName}-${Date.now()}`,
@@ -1326,25 +1338,25 @@ const normalizeTunnelConfigSource = (value) => {
 //   4. After that, only the working token is used.
 
 /**
- * Default permission groups for a Zero Frame working token. These are the
- * Cloudflare permission-group IDs that the working token gets scoped to one
- * account. They include API Tokens: Edit so the working token can mint
- * per-bucket R2 S3 keys without touching the bootstrap.
+ * Default permission groups for a Zero Frame working token. Specified by
+ * NAME (and scope where ambiguous) — the resolver fetches current Cloudflare
+ * IDs at runtime. This protects against Cloudflare rotating IDs
+ * (which happened between our 0.1.9 → 0.1.10 ship — see commit history).
  *
- * The ID strings here are stable Cloudflare permission-group IDs. Fetch the
- * authoritative list with `GET /user/tokens/permission_groups`.
+ * The fallback IDs live in `core/permission-group-resolver.mjs` for the
+ * offline case.
  */
-export const DEFAULT_WORKING_TOKEN_PERMISSION_GROUPS = Object.freeze([
-  // Account: R2 Storage : Edit
-  { id: "2efd5506f9c8494dacb1fa10a3e7d5b6" },
-  // Account: Workers Scripts : Edit
-  { id: "e086da7e2179491d91ee5f35b3ca210a" },
-  // Zone: DNS : Edit
-  { id: "4755a26eedb94da69e1066d98aa820be" },
-  // Zone: Zone : Read
-  { id: "c8fed203ed3043cba015a93ad1616f1f" },
-  // User: API Tokens : Edit (so the working token can mint per-bucket R2 keys)
-  { id: "0aeacf61d2da4e168ec97f8efacf9b4f" },
+export const DEFAULT_WORKING_TOKEN_PERMISSION_SPECS = Object.freeze([
+  // R2 buckets: write
+  { name: "Workers R2 Storage Write" },
+  // Workers Scripts: write
+  { name: "Workers Scripts Write" },
+  // DNS: write (zone-scoped)
+  { name: "DNS Write" },
+  // Zone: read (zone-scoped, needed for domain lookups)
+  { name: "Zone Read" },
+  // API Tokens: write (user-scoped — needed for per-bucket R2 key minting)
+  { name: "API Tokens Write", scope: "com.cloudflare.api.user" },
 ]);
 
 export const createCloudflareBootstrapClient = ({
@@ -1432,6 +1444,7 @@ export const createCloudflareBootstrapClient = ({
     accountId,
     accountName,
     permissionGroups,
+    permissionSpecs,
     tokenName,
   } = {}) => {
     if (!accountId) {
@@ -1440,12 +1453,29 @@ export const createCloudflareBootstrapClient = ({
       );
     }
 
-    const groups = Array.isArray(permissionGroups) && permissionGroups.length > 0
-      ? permissionGroups
-      : [...DEFAULT_WORKING_TOKEN_PERMISSION_GROUPS];
+    // Three input modes, in priority order:
+    //   1. Caller passes resolved permissionGroups (raw IDs) → use as-is
+    //   2. Caller passes permissionSpecs (names) → resolve via API now
+    //   3. Default: resolve DEFAULT_WORKING_TOKEN_PERMISSION_SPECS
+    let groups;
+    if (Array.isArray(permissionGroups) && permissionGroups.length > 0) {
+      groups = permissionGroups;
+    } else {
+      const specs =
+        Array.isArray(permissionSpecs) && permissionSpecs.length > 0
+          ? permissionSpecs
+          : [...DEFAULT_WORKING_TOKEN_PERMISSION_SPECS];
+      const resolved = await resolveCloudflarePermissionGroups(specs, {
+        authToken: bootstrap.token,
+        apiBaseUrl,
+        fetchImpl,
+      });
+      groups = resolved.map((g) => ({ id: g.id }));
+    }
 
     const name =
-      tokenName ?? `zero-frame-${(accountName ?? accountId).slice(0, 24)}-${Date.now()}`;
+      tokenName ??
+      `zero-frame-${(accountName ?? accountId).slice(0, 24)}-${Date.now()}`;
 
     const body = {
       name,
