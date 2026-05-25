@@ -1,12 +1,14 @@
 import {
   DEFAULT_AXIOM_API_BASE_URL,
   getAxiomAuthStatus,
+  getAxiomBootstrapToken,
   resolveAxiomAuthConfig,
 } from "./auth.mjs";
 
 export {
   DEFAULT_AXIOM_API_BASE_URL,
   getAxiomAuthStatus,
+  getAxiomBootstrapToken,
   resolveAxiomAuthConfig,
 } from "./auth.mjs";
 
@@ -267,4 +269,190 @@ const pickFirstString = (...values) => {
     }
   }
   return null;
+};
+
+// =============================================================================
+// Bootstrap client — used only at project-init time
+// =============================================================================
+//
+// Mirrors the Cloudflare bootstrap pattern. The bootstrap is a narrow Axiom
+// token whose ONLY capability is creating other tokens (orgCapabilities.apiTokens).
+// It uses POST /v2/tokens to mint scoped working tokens for individual projects:
+// each working token gets Query-only access on the specific dataset(s) the
+// project uses, nothing more.
+//
+// Workflow:
+//   1. User runs `bun zero connect axiom` once per machine. Browser-based
+//      flow walks them through creating the narrow bootstrap in Axiom's UI
+//      and pastes it. Saved to ~/.config/agentic-devtools/axiom-bootstrap.json.
+//   2. When connecting Axiom for a project, the bootstrap client:
+//        a. Lists available datasets (GET /v1/datasets — works with any token)
+//        b. Asks user which dataset(s) this project uses
+//        c. Mints a Query-only working token scoped to those datasets
+//        d. Working token is written to .zeroframe/credentials/axiom.json
+//   3. After that, only the working token is used.
+
+export const createAxiomBootstrapClient = ({
+  env = process.env,
+  fetchImpl = globalThis.fetch,
+} = {}) => {
+  const bootstrap = getAxiomBootstrapToken(env);
+  const apiBaseUrl =
+    (bootstrap.apiBaseUrl ?? DEFAULT_AXIOM_API_BASE_URL).replace(/\/+$/, "");
+
+  if (typeof fetchImpl !== "function") {
+    throw new Error("Axiom bootstrap client requires a fetch implementation.");
+  }
+
+  const request = async (method, pathname, { body } = {}) => {
+    if (!bootstrap.token) {
+      throw new AxiomApiError(
+        "Missing Axiom bootstrap token. Run `bun zero connect axiom` once per machine to create one.",
+      );
+    }
+    const url = new URL(pathname.replace(/^\//, ""), `${apiBaseUrl}/`);
+    const init = {
+      method,
+      headers: {
+        Authorization: `Bearer ${bootstrap.token}`,
+        ...(bootstrap.orgId ? { "x-axiom-org-id": bootstrap.orgId } : {}),
+        ...(body ? { "content-type": "application/json" } : {}),
+      },
+    };
+    if (body !== undefined) init.body = JSON.stringify(body);
+    const response = await fetchImpl(url, init);
+    const text = await response.text();
+    let payload = null;
+    if (text) {
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        payload = { error: text };
+      }
+    }
+    if (!response.ok) {
+      throw new AxiomApiError(
+        formatAxiomErrorMessage(payload, response.status),
+        { status: response.status, payload },
+      );
+    }
+    return payload;
+  };
+
+  /**
+   * Verify the bootstrap token has the right shape (can list tokens —
+   * proxy for "has apiTokens capability").
+   */
+  const validate = async () => {
+    const result = await request("GET", "/v2/tokens");
+    const tokens = Array.isArray(result)
+      ? result
+      : Array.isArray(result?.tokens)
+        ? result.tokens
+        : [];
+    return {
+      ok: true,
+      tokenCount: tokens.length,
+      source: bootstrap.source,
+    };
+  };
+
+  /**
+   * List the datasets visible to this bootstrap. Note: a narrow bootstrap
+   * (only apiTokens) may NOT see datasets — in that case it'll 403. The
+   * connect orchestrator handles that case by asking the user to type
+   * the dataset name(s) manually.
+   */
+  const listAccessibleDatasets = async () => {
+    try {
+      const result = await request("GET", "/v1/datasets");
+      const datasets = Array.isArray(result) ? result : (result?.datasets ?? []);
+      return { datasets, accessible: true };
+    } catch (err) {
+      if (err?.details?.status === 403) {
+        // Bootstrap is correctly narrow — it can mint but not query.
+        // Surface that explicitly so the orchestrator can prompt for
+        // dataset names instead.
+        return { datasets: [], accessible: false, narrowBootstrap: true };
+      }
+      throw err;
+    }
+  };
+
+  /**
+   * Mint a scoped working token via POST /v2/tokens.
+   *
+   * Defaults to Query-only on the supplied datasets. Override via
+   * `datasetCapabilities` for advanced cases (e.g. mint a token that also
+   * ingests). Returns { tokenValue, tokenId, name, datasetCapabilities }.
+   *
+   * The token value is ONLY returned on creation — the caller must persist
+   * it immediately.
+   */
+  const mintWorkingToken = async ({
+    name,
+    datasets = [],
+    datasetCapabilities,
+    orgCapabilities = {},
+    expiresAt = null,
+    description = "",
+  } = {}) => {
+    if (!name) {
+      throw new AxiomApiError(
+        "mintWorkingToken requires { name } for the new token.",
+      );
+    }
+
+    // Build datasetCapabilities from `datasets` shortcut if not explicit.
+    let resolvedDatasetCaps;
+    if (datasetCapabilities && typeof datasetCapabilities === "object") {
+      resolvedDatasetCaps = datasetCapabilities;
+    } else {
+      if (!Array.isArray(datasets) || datasets.length === 0) {
+        throw new AxiomApiError(
+          "mintWorkingToken requires either { datasetCapabilities } or { datasets: [...] }.",
+        );
+      }
+      resolvedDatasetCaps = {};
+      for (const ds of datasets) {
+        resolvedDatasetCaps[ds] = { query: ["read"] };
+      }
+    }
+
+    const body = {
+      name,
+      ...(description ? { description } : {}),
+      ...(expiresAt ? { expiresAt } : {}),
+      datasetCapabilities: resolvedDatasetCaps,
+      orgCapabilities,
+    };
+
+    const result = await request("POST", "/v2/tokens", { body });
+
+    // Axiom returns the token on creation only.
+    const tokenValue = result?.token;
+    if (!tokenValue || typeof tokenValue !== "string") {
+      throw new AxiomApiError(
+        "Axiom did not return a token value on /v2/tokens creation.",
+        { payload: result },
+      );
+    }
+
+    return {
+      tokenId: result.id ?? null,
+      tokenValue,
+      name: result.name ?? name,
+      datasetCapabilities: result.datasetCapabilities ?? resolvedDatasetCaps,
+      orgCapabilities: result.orgCapabilities ?? orgCapabilities,
+      expiresAt: result.expiresAt ?? expiresAt,
+    };
+  };
+
+  return {
+    bootstrap,
+    apiBaseUrl,
+    validate,
+    listAccessibleDatasets,
+    mintWorkingToken,
+  };
 };
