@@ -19,6 +19,12 @@ export const tools = {
     description: "Inspect npm packages, auth, tokens, and publishing setup.",
     mcpModule: "./tools/npm/mcp.mjs",
   },
+  axiom: {
+    name: "axiom",
+    description:
+      "Query production logs + OpenTelemetry traces in Axiom using APL.",
+    mcpModule: "./tools/axiom/mcp.mjs",
+  },
 };
 
 export const listTools = () => Object.values(tools);

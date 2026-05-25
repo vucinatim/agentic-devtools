@@ -23,13 +23,13 @@ test("getTool returns registered tools", () => {
   assert.equal(getTool("npm").mcpModule, "./tools/npm/mcp.mjs");
   assert.deepEqual(
     listTools().map((tool) => tool.name),
-    ["cloudflare", "namecheap", "railway", "npm"],
+    ["cloudflare", "namecheap", "railway", "npm", "axiom"],
   );
 });
 
 test("getTool rejects unknown tool names with available options", () => {
   assert.throws(
     () => getTool("unknown"),
-    /Unknown tool "unknown".*cloudflare, namecheap, railway, npm/,
+    /Unknown tool "unknown".*cloudflare, namecheap, railway, npm, axiom/,
   );
 });

@@ -101,6 +101,26 @@ export const CAPABILITIES = Object.freeze({
     bootstrap_note:
       "Use an 'Automation' token type. Granular tokens with publish + package-read scopes also work. Personal access tokens with 2FA enforcement will block CI-style publishes.",
   },
+
+  axiom: {
+    scopes: [
+      {
+        id: "axiom.query",
+        display: "Query",
+        needed_for: ["read events", "run APL queries", "fetch traces"],
+      },
+      {
+        id: "axiom.ingest",
+        display: "Ingest (optional)",
+        needed_for: [
+          "send events to Axiom from agent code (rare for an MCP — usually app code ingests)",
+        ],
+      },
+    ],
+    dashboard_token_url: "https://app.axiom.co/settings/api-tokens",
+    bootstrap_note:
+      "Tokens are scoped at creation time. Query is enough for the read-only debug-from-chat workflow. Add Ingest only if you want the agent to write events too.",
+  },
 });
 
 /**

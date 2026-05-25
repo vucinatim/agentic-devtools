@@ -1,6 +1,6 @@
 {
   "name": "@vucinatim/agentic-devtools",
-  "version": "0.1.11",
+  "version": "0.2.0",
   "private": false,
   "description": "MCP-first devtools for AI agents.",
   "type": "module",
@@ -38,7 +38,8 @@
     "./cloudflare": "./src/tools/cloudflare/client.mjs",
     "./namecheap": "./src/tools/namecheap/client.mjs",
     "./railway": "./src/tools/railway/client.mjs",
-    "./npm": "./src/tools/npm/client.mjs"
+    "./npm": "./src/tools/npm/client.mjs",
+    "./axiom": "./src/tools/axiom/client.mjs"
   },
   "files": [
     "src",
@@ -66,6 +67,7 @@
     "test:cloudflare": "vitest run tests/tools/cloudflare",
     "test:namecheap": "vitest run tests/tools/namecheap",
     "test:railway": "vitest run tests/tools/railway",
+    "test:axiom": "vitest run tests/tools/axiom",
     "validate:package": "node scripts/validate-package.mjs"
   },
   "dependencies": {

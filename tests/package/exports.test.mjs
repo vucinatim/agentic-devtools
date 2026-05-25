@@ -22,6 +22,6 @@ test("root package export exposes stable public helpers", () => {
 test("tool registry exposes the current public tool set", () => {
   assert.deepEqual(
     listTools().map((tool) => tool.name),
-    ["cloudflare", "namecheap", "railway", "npm"],
+    ["cloudflare", "namecheap", "railway", "npm", "axiom"],
   );
 });

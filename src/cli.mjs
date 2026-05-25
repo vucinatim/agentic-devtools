@@ -6,8 +6,8 @@ import { getTool, listTools } from "./core/tool-registry.mjs";
 const usage = () => `Usage:
   agentic-devtools tools
   agentic-devtools railway <command>
-  agentic-devtools mcp <cloudflare|namecheap|railway|npm>
-  agentic-devtools connect <cloudflare|namecheap|railway|npm>
+  agentic-devtools mcp <cloudflare|namecheap|railway|npm|axiom>
+  agentic-devtools connect <cloudflare|namecheap|railway|npm|axiom>
   agentic-devtools bootstrap <cloudflare|railway>    (save global bootstrap token)
   agentic-devtools list-permission-groups cloudflare [filter]
                                                      (lists Cloudflare's current permission catalog)
@@ -19,9 +19,9 @@ const usage = () => `Usage:
   agentic-devtools mint-project-token railway        --project-id <id> [--environment-id <id>] [--to <path>]
                                                      (uses bootstrap to mint project-scoped working token)
   agentic-devtools setup-publishing npm
-  agentic-devtools disconnect <cloudflare|namecheap|railway|npm>
-  agentic-devtools auth-status <cloudflare|namecheap|railway|npm>
-  agentic-devtools test-connection <cloudflare|namecheap|railway|npm>
+  agentic-devtools disconnect <cloudflare|namecheap|railway|npm|axiom>
+  agentic-devtools auth-status <cloudflare|namecheap|railway|npm|axiom>
+  agentic-devtools test-connection <cloudflare|namecheap|railway|npm|axiom>
 
 Environment:
   Cloudflare: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_ZONE_ID, CLOUDFLARE_API_BASE_URL
@@ -29,6 +29,7 @@ Environment:
   Namecheap: NAMECHEAP_API_USER, NAMECHEAP_API_KEY, NAMECHEAP_USERNAME, NAMECHEAP_CLIENT_IP
   Railway:   RAILWAY_PROJECT_TOKEN or RAILWAY_API_TOKEN / RAILWAY_TOKEN
   npm:       NPM_TOKEN or NODE_AUTH_TOKEN
+  Axiom:     AXIOM_TOKEN, AXIOM_DATASET, AXIOM_API_BASE_URL, AXIOM_AUTH_CONFIG_PATH
 `;
 
 const args = process.argv.slice(2);
@@ -86,8 +87,13 @@ if (args[0] === "auth-status") {
     printJson(getNpmAuthStatus());
     process.exit(0);
   }
+  if (toolName === "axiom") {
+    const { getAxiomAuthStatus } = await import("./tools/axiom/auth.mjs");
+    printJson(getAxiomAuthStatus());
+    process.exit(0);
+  }
   throw new Error(
-    "auth-status expects one of: cloudflare, namecheap, railway, npm",
+    "auth-status expects one of: cloudflare, namecheap, railway, npm, axiom",
   );
 }
 
@@ -127,7 +133,17 @@ if (args[0] === "connect") {
     );
     process.exit(0);
   }
-  throw new Error("connect expects one of: cloudflare, namecheap, railway, npm");
+  if (toolName === "axiom") {
+    const { runAxiomBrowserAuthFlow } = await import(
+      "./tools/axiom/auth.mjs"
+    );
+    process.stderr.write("Opening Axiom browser setup flow...\n");
+    printJson(await runAxiomBrowserAuthFlow());
+    process.exit(0);
+  }
+  throw new Error(
+    "connect expects one of: cloudflare, namecheap, railway, npm, axiom",
+  );
 }
 
 // ---- bootstrap (cloudflare-only currently) ----------------------------------
@@ -434,8 +450,13 @@ if (args[0] === "disconnect") {
     printJson(await disconnectNpm());
     process.exit(0);
   }
+  if (toolName === "axiom") {
+    const { disconnectAxiom } = await import("./tools/axiom/auth.mjs");
+    printJson(await disconnectAxiom());
+    process.exit(0);
+  }
   throw new Error(
-    "disconnect expects one of: cloudflare, namecheap, railway, npm",
+    "disconnect expects one of: cloudflare, namecheap, railway, npm, axiom",
   );
 }
 
@@ -493,8 +514,20 @@ if (args[0] === "test-connection") {
     });
     process.exit(0);
   }
+  if (toolName === "axiom") {
+    const { createAxiomClient } = await import("./tools/axiom/client.mjs");
+    const client = createAxiomClient();
+    const result = await client.validateToken();
+    printJson({
+      ok: result.ok,
+      tokenSource: client.auth.source,
+      defaultDataset: client.auth.defaultDataset,
+      result,
+    });
+    process.exit(0);
+  }
   throw new Error(
-    "test-connection expects one of: cloudflare, namecheap, railway, npm",
+    "test-connection expects one of: cloudflare, namecheap, railway, npm, axiom",
   );
 }
 
