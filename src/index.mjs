@@ -64,23 +64,16 @@ export {
 } from "./tools/npm/trust-cli.mjs";
 export {
   AXIOM_AUTH_CONFIG_PATH,
-  AXIOM_BOOTSTRAP_CONFIG_PATH,
   clearStoredAxiomAuthConfig,
-  clearStoredAxiomBootstrap,
   DEFAULT_AXIOM_API_BASE_URL,
   disconnectAxiom,
   getAxiomAuthStatus,
-  getAxiomBootstrapStatus,
-  getAxiomBootstrapToken,
   resolveAxiomAuthConfig,
-  runAxiomBootstrapFlow,
   runAxiomBrowserAuthFlow,
   saveAxiomAuthConfig,
-  saveAxiomBootstrapToken,
 } from "./tools/axiom/auth.mjs";
 export {
   AxiomApiError,
-  createAxiomBootstrapClient,
   createAxiomClient,
   toIsoTimestamp,
 } from "./tools/axiom/client.mjs";

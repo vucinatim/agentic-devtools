@@ -1,6 +1,6 @@
 {
   "name": "@vucinatim/agentic-devtools",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": false,
   "description": "MCP-first devtools for AI agents.",
   "type": "module",
@@ -57,7 +57,7 @@
   },
   "scripts": {
     "build": "node scripts/check-syntax.mjs",
-    "check": "npm run build && npm run coverage && npm run audit && npm run validate:package",
+    "check": "npm run build && npm run coverage && npm run audit && npm run validate:package && npm run smoke:local && npm run prepublish:check",
     "coverage": "vitest run --coverage",
     "audit": "npm audit --omit=dev",
     "pack:dry": "npm pack --dry-run",
@@ -68,7 +68,12 @@
     "test:namecheap": "vitest run tests/tools/namecheap",
     "test:railway": "vitest run tests/tools/railway",
     "test:axiom": "vitest run tests/tools/axiom",
-    "validate:package": "node scripts/validate-package.mjs"
+    "validate:package": "node scripts/validate-package.mjs",
+    "smoke:local": "node scripts/local-artifact-smoke.mjs",
+    "smoke:cloudflare": "node scripts/smoke/cloudflare.mjs",
+    "smoke:railway": "node scripts/smoke/railway.mjs",
+    "smoke:axiom": "node scripts/smoke/axiom.mjs",
+    "prepublish:check": "node scripts/pre-publish-check.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",

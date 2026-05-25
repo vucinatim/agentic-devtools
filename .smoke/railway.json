@@ -1,0 +1,11 @@
+{
+  "provider": "railway",
+  "ranAt": "2026-05-25T12:12:52.343Z",
+  "inputHash": "45715af09c1cdf38c5e2e6ba78079b5799f7f80febea13c4c9491e5c33bf8785",
+  "ok": true,
+  "operations": [
+    "getRailwayAuthStatus",
+    "listProjects"
+  ],
+  "projectCount": 0
+}

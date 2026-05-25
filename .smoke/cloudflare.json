@@ -1,0 +1,11 @@
+{
+  "provider": "cloudflare",
+  "ranAt": "2026-05-25T12:12:48.533Z",
+  "inputHash": "f2c863a684a053de636e6c7c43a87d181551aca955923598fbc70d20ffe887c4",
+  "ok": true,
+  "operations": [
+    "getCloudflareAuthStatus",
+    "listAccounts"
+  ],
+  "accountCount": 3
+}

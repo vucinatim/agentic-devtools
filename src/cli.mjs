@@ -8,17 +8,14 @@ const usage = () => `Usage:
   agentic-devtools railway <command>
   agentic-devtools mcp <cloudflare|namecheap|railway|npm|axiom>
   agentic-devtools connect <cloudflare|namecheap|railway|npm|axiom>
-  agentic-devtools bootstrap <cloudflare|railway|axiom>    (save global bootstrap token)
+  agentic-devtools bootstrap <cloudflare|railway>    (save global bootstrap token)
   agentic-devtools list-permission-groups cloudflare [filter]
                                                      (lists Cloudflare's current permission catalog)
   agentic-devtools list-accounts cloudflare          (uses cloudflare bootstrap; lists accessible accounts)
   agentic-devtools list-workspaces railway           (uses railway bootstrap; lists workspaces)
   agentic-devtools list-projects railway             [--workspace-id <id>]
-  agentic-devtools list-datasets axiom               (uses axiom bootstrap; lists accessible datasets)
   agentic-devtools mint-working cloudflare           --account-id <id> [--to <path>]
                                                      (uses bootstrap to mint account-scoped working token)
-  agentic-devtools mint-working axiom                --datasets=<name>[,<name>...] [--to <path>] [--include-ingest] [--expires-at <ISO>]
-                                                     (uses bootstrap to mint dataset-scoped Query-only working token)
   agentic-devtools mint-project-token railway        --project-id <id> [--environment-id <id>] [--to <path>]
                                                      (uses bootstrap to mint project-scoped working token)
   agentic-devtools setup-publishing npm
@@ -32,7 +29,7 @@ Environment:
   Namecheap: NAMECHEAP_API_USER, NAMECHEAP_API_KEY, NAMECHEAP_USERNAME, NAMECHEAP_CLIENT_IP
   Railway:   RAILWAY_PROJECT_TOKEN or RAILWAY_API_TOKEN / RAILWAY_TOKEN
   npm:       NPM_TOKEN or NODE_AUTH_TOKEN
-  Axiom:     AXIOM_TOKEN, AXIOM_DATASET, AXIOM_API_BASE_URL, AXIOM_AUTH_CONFIG_PATH
+  Axiom:     AXIOM_TOKEN, AXIOM_DATASET, AXIOM_API_BASE_URL, AXIOM_AUTH_CONFIG_PATH, AXIOM_ORG_ID
 `;
 
 const args = process.argv.slice(2);
@@ -175,15 +172,7 @@ if (args[0] === "bootstrap") {
     printJson(await runRailwayBootstrapFlow());
     process.exit(0);
   }
-  if (toolName === "axiom") {
-    const { runAxiomBootstrapFlow } = await import("./tools/axiom/auth.mjs");
-    process.stderr.write(
-      "Opening Axiom bootstrap setup flow (one-time per machine)...\n",
-    );
-    printJson(await runAxiomBootstrapFlow());
-    process.exit(0);
-  }
-  throw new Error("bootstrap expects: cloudflare | railway | axiom");
+  throw new Error("bootstrap expects: cloudflare | railway");
 }
 
 // ---- list-permission-groups (cloudflare diagnostic) ------------------------
@@ -237,21 +226,6 @@ if (args[0] === "list-accounts") {
     process.exit(0);
   }
   throw new Error("list-accounts expects: cloudflare");
-}
-
-// ---- list-datasets (axiom bootstrap) ---------------------------------------
-if (args[0] === "list-datasets") {
-  const toolName = args[1];
-  if (toolName === "axiom") {
-    const { createAxiomBootstrapClient } = await import(
-      "./tools/axiom/client.mjs"
-    );
-    const client = createAxiomBootstrapClient();
-    const result = await client.listAccessibleDatasets();
-    printJson(result);
-    process.exit(0);
-  }
-  throw new Error("list-datasets expects: axiom");
 }
 
 // ---- list-workspaces (railway bootstrap) -----------------------------------
@@ -424,84 +398,7 @@ if (args[0] === "mint-working") {
     });
     process.exit(0);
   }
-  if (toolName === "axiom") {
-    const { createAxiomBootstrapClient } = await import(
-      "./tools/axiom/client.mjs"
-    );
-    const { saveAxiomAuthConfig } = await import("./tools/axiom/auth.mjs");
-
-    const rest = args.slice(2);
-    const getFlag = (name) => {
-      const i = rest.indexOf(`--${name}`);
-      return i !== -1 ? rest[i + 1] : null;
-    };
-    const getMultiFlag = (name) => {
-      const value = getFlag(name);
-      if (!value) return [];
-      return value
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-    };
-
-    const datasets = getMultiFlag("datasets");
-    const toPath = getFlag("to");
-    const tokenName = getFlag("token-name") ?? `zero-frame-${Date.now()}`;
-    const expiresAt = getFlag("expires-at");
-    const includeIngest = rest.includes("--include-ingest");
-
-    if (datasets.length === 0) {
-      throw new Error(
-        "mint-working axiom requires --datasets=<name>[,<name>...]. Run list-datasets axiom (or list datasets via the dashboard) first.",
-      );
-    }
-
-    // Build per-dataset capabilities. Default: Query-only. Optional --include-ingest
-    // adds the Ingest verb too (rare — usually app code ingests via env vars, not
-    // through this token).
-    const datasetCapabilities = {};
-    for (const ds of datasets) {
-      const caps = { query: ["read"] };
-      if (includeIngest) caps.ingest = ["create"];
-      datasetCapabilities[ds] = caps;
-    }
-
-    const client = createAxiomBootstrapClient();
-    const minted = await client.mintWorkingToken({
-      name: tokenName,
-      datasetCapabilities,
-      ...(expiresAt ? { expiresAt } : {}),
-    });
-
-    if (toPath) {
-      const original = process.env.AXIOM_AUTH_CONFIG_PATH;
-      process.env.AXIOM_AUTH_CONFIG_PATH = toPath;
-      try {
-        await saveAxiomAuthConfig({
-          token: minted.tokenValue,
-          defaultDataset: datasets[0] ?? "",
-        });
-      } finally {
-        if (original === undefined) {
-          delete process.env.AXIOM_AUTH_CONFIG_PATH;
-        } else {
-          process.env.AXIOM_AUTH_CONFIG_PATH = original;
-        }
-      }
-    }
-
-    printJson({
-      tokenId: minted.tokenId,
-      name: minted.name,
-      datasets,
-      capability: includeIngest ? "query+ingest" : "query",
-      expiresAt: minted.expiresAt ?? null,
-      written_to: toPath ?? null,
-      ...(toPath ? {} : { tokenValue: minted.tokenValue }),
-    });
-    process.exit(0);
-  }
-  throw new Error("mint-working expects: cloudflare | axiom");
+  throw new Error("mint-working expects: cloudflare");
 }
 
 if (args[0] === "setup-publishing") {

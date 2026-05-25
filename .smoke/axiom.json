@@ -1,0 +1,12 @@
+{
+  "provider": "axiom",
+  "ranAt": "2026-05-25T16:53:35.955Z",
+  "inputHash": "26bd4129f375308e57558d15046d5a70c6e08e56dc1336caf836721bdc9f23e1",
+  "ok": true,
+  "operations": [
+    "resolveAxiomAuthConfig",
+    "listDatasets"
+  ],
+  "datasetCount": 23,
+  "queriedDataset": ""
+}
