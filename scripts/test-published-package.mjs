@@ -99,7 +99,7 @@ const testNpxUsage = async ({
       });
       assert.match(
         help.stdout,
-        /agentic-devtools mcp <cloudflare\|namecheap\|railway\|npm>/,
+        /agentic-devtools mcp <cloudflare\|namecheap\|railway\|npm\|axiom>/,
       );
 
       const tools = await execJsonCommand(
@@ -109,7 +109,7 @@ const testNpxUsage = async ({
       );
       assert.deepEqual(
         tools.map((tool) => tool.name),
-        ["cloudflare", "namecheap", "railway", "npm"],
+        ["cloudflare", "namecheap", "railway", "npm", "axiom"],
       );
 
       const npmAuthStatus = await execJsonCommand(
@@ -120,7 +120,7 @@ const testNpxUsage = async ({
       assert.equal(typeof npmAuthStatus.configured, "boolean");
       assert.equal(typeof npmAuthStatus.registry, "string");
 
-      for (const toolName of ["cloudflare", "namecheap", "railway", "npm"]) {
+      for (const toolName of ["cloudflare", "namecheap", "railway", "npm", "axiom"]) {
         const helpResult = await execCommand(
           "npx",
           ["-y", packageSpec, "mcp", toolName, "--help"],
@@ -167,13 +167,13 @@ const testGlobalInstallUsage = async ({
       const help = await execCommand(binaryPath, ["--help"]);
       assert.match(
         help.stdout,
-        /agentic-devtools connect <cloudflare\|namecheap\|railway\|npm>/,
+        /agentic-devtools connect <cloudflare\|namecheap\|railway\|npm\|axiom>/,
       );
 
       const tools = await execJsonCommand(binaryPath, ["tools"]);
       assert.deepEqual(
         tools.map((tool) => tool.name),
-        ["cloudflare", "namecheap", "railway", "npm"],
+        ["cloudflare", "namecheap", "railway", "npm", "axiom"],
       );
     },
     { packageSpec, timeoutMs, intervalMs },
