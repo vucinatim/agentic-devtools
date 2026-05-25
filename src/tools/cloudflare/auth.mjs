@@ -243,7 +243,7 @@ export const runCloudflareBootstrapFlow = async ({
     <div class="wrap">
       <div class="panel">
         <h1>Bootstrap Cloudflare</h1>
-        <p>You'll do this once per machine. After bootstrap, every Zero Frame project gets its own account-scoped working token automatically — no more dashboard clicks.</p>
+        <p>You'll do this once per machine. After bootstrap, every Zeroframe project gets its own account-scoped working token automatically — no more dashboard clicks.</p>
 
         <div class="callout">
           <strong>One template, one click.</strong> Cloudflare ships a built-in template called <strong>“Create Additional Tokens”</strong> that pre-selects exactly the one scope a bootstrap needs (<code>User → API Tokens → Edit</code>). You do <em>not</em> need to find anything in the 200-row Custom Token list.
@@ -336,7 +336,7 @@ export const runCloudflareBootstrapFlow = async ({
 <body style="font-family:ui-sans-serif,sans-serif;padding:32px;background:#f6f7fb;color:#17181c;">
 <h1>Bootstrap saved</h1>
 <p>Stored at <code>${escapeHtml(CLOUDFLARE_BOOTSTRAP_CONFIG_PATH)}</code>.</p>
-<p>You can close this window. Zero Frame will use this token to mint
+<p>You can close this window. Zeroframe will use this token to mint
 account-scoped working tokens for each project automatically.</p>
 </body></html>`);
 

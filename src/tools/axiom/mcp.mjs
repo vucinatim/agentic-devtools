@@ -223,7 +223,7 @@ const createServer = () => {
     "axiomFindDashboardByUid",
     {
       description:
-        "Look up a dashboard by its custom `uid` field. Returns null when not found (does not throw). Use this for idempotent provisioning: call before axiomCreateDashboard so you don't create duplicates. The Zero Frame default dashboard uses uid `zero-frame-<project-slug>`.",
+        "Look up a dashboard by its custom `uid` field. Returns null when not found (does not throw). Use this for idempotent provisioning: call before axiomCreateDashboard so you don't create duplicates. The Zeroframe default dashboard uses uid `zero-frame-<project-slug>`.",
       inputSchema: {
         uid: z.string().min(1),
       },

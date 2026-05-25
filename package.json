@@ -73,6 +73,8 @@
     "smoke:cloudflare": "node scripts/smoke/cloudflare.mjs",
     "smoke:railway": "node scripts/smoke/railway.mjs",
     "smoke:axiom": "node scripts/smoke/axiom.mjs",
+    "smoke:npm": "node scripts/smoke/npm.mjs",
+    "smoke:namecheap": "node scripts/smoke/namecheap.mjs",
     "prepublish:check": "node scripts/pre-publish-check.mjs"
   },
   "dependencies": {

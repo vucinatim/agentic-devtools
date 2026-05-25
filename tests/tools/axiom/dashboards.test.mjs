@@ -35,7 +35,7 @@ test("createDashboard POSTs to /v2/dashboards with the envelope shape", async ()
   });
 
   const result = await client.createDashboard({
-    name: "Zero Frame default",
+    name: "Zeroframe default",
     uid: "zero-frame-myapp",
     description: "auto-provisioned",
   });
@@ -43,7 +43,7 @@ test("createDashboard POSTs to /v2/dashboards with the envelope shape", async ()
   assert.equal(captured.method, "POST");
   assert.match(captured.url, /\/v2\/dashboards$/);
   const body = JSON.parse(captured.body);
-  assert.equal(body.dashboard.name, "Zero Frame default");
+  assert.equal(body.dashboard.name, "Zeroframe default");
   assert.equal(body.dashboard.uid, "zero-frame-myapp");
   assert.equal(body.dashboard.owner, "X-AXIOM-EVERYONE");
   assert.equal(body.dashboard.schemaVersion, 2);

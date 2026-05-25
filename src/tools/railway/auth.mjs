@@ -502,7 +502,7 @@ export const runRailwayBootstrapFlow = async ({
     <div class="wrap">
       <div class="panel">
         <h1>Bootstrap Railway</h1>
-        <p>You'll do this once per machine. After bootstrap, every Zero Frame project gets its own project-scoped Railway token automatically (created when you provision Railway infra for that project).</p>
+        <p>You'll do this once per machine. After bootstrap, every Zeroframe project gets its own project-scoped Railway token automatically (created when you provision Railway infra for that project).</p>
 
         <div class="callout">
           <strong>Use an account-level token, not a project token.</strong> The bootstrap is what mints downstream project tokens; it needs the broader account scope.
@@ -598,7 +598,7 @@ export const runRailwayBootstrapFlow = async ({
 <body style="font-family:ui-sans-serif,sans-serif;padding:32px;background:#f6f7f9;color:#17181c;">
 <h1>Bootstrap saved</h1>
 <p>Stored at <code>${escapeHtml(RAILWAY_BOOTSTRAP_CONFIG_PATH)}</code>.</p>
-<p>You can close this window. Zero Frame will use this token to mint
+<p>You can close this window. Zeroframe will use this token to mint
 project-scoped tokens for each project's Railway infrastructure.</p>
 </body></html>`);
 

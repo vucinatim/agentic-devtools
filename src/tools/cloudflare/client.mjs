@@ -1338,7 +1338,7 @@ const normalizeTunnelConfigSource = (value) => {
 //   4. After that, only the working token is used.
 
 /**
- * Default permission groups for a Zero Frame working token. Specified by
+ * Default permission groups for a Zeroframe working token. Specified by
  * NAME (and scope where ambiguous) — the resolver fetches current Cloudflare
  * IDs at runtime. This protects against Cloudflare rotating IDs
  * (which happened between our 0.1.9 → 0.1.10 ship — see commit history).
@@ -1437,7 +1437,7 @@ export const createCloudflareBootstrapClient = ({
    *
    * The minted token's scopes are the supplied permission groups, locked to
    * the supplied account via the resources field. If no permission groups are
-   * given, the Zero Frame defaults are used (R2 + Workers + DNS + Zone +
+   * given, the Zeroframe defaults are used (R2 + Workers + DNS + Zone +
    * API Tokens, all account-scoped).
    */
   const mintWorkingToken = async ({
