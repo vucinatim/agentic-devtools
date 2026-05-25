@@ -297,8 +297,12 @@ export const createAxiomBootstrapClient = ({
   fetchImpl = globalThis.fetch,
 } = {}) => {
   const bootstrap = getAxiomBootstrapToken(env);
-  const apiBaseUrl =
-    (bootstrap.apiBaseUrl ?? DEFAULT_AXIOM_API_BASE_URL).replace(/\/+$/, "");
+  // Use `||` not `??`: stored config writes apiBaseUrl: "" (empty string) when
+  // the user accepts the default. `??` only falls back on null/undefined, so
+  // an empty string would slip through and produce `new URL("v1/datasets", "/")`.
+  const apiBaseUrl = (
+    bootstrap.apiBaseUrl?.trim() || DEFAULT_AXIOM_API_BASE_URL
+  ).replace(/\/+$/, "");
 
   if (typeof fetchImpl !== "function") {
     throw new Error("Axiom bootstrap client requires a fetch implementation.");

@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { createAxiomBootstrapClient } from "../../../src/tools/axiom/client.mjs";
 
+// Point the bootstrap reader at a guaranteed-nonexistent path so tests don't
+// pick up whatever's saved on the developer's machine at
+// ~/.config/agentic-devtools/axiom-bootstrap.json.
+const ISOLATED_BOOTSTRAP_PATH = "/tmp/__axiom_bootstrap_test_does_not_exist.json";
+
 const jsonResponse = (body, status = 200) => ({
   ok: status >= 200 && status < 300,
   status,
@@ -11,7 +16,7 @@ const jsonResponse = (body, status = 200) => ({
 test("bootstrap client validates by listing tokens", async () => {
   const calls = [];
   const client = createAxiomBootstrapClient({
-    env: { AXIOM_BOOTSTRAP_TOKEN: "xaat-bootstrap" },
+    env: { AXIOM_BOOTSTRAP_TOKEN: "xaat-bootstrap", AXIOM_BOOTSTRAP_CONFIG_PATH: ISOLATED_BOOTSTRAP_PATH },
     fetchImpl: async (url, init) => {
       calls.push({ url: String(url), method: init.method });
       return jsonResponse([{ id: "t1" }, { id: "t2" }]);
@@ -27,7 +32,7 @@ test("bootstrap client validates by listing tokens", async () => {
 test("bootstrap client mints a working token with dataset capabilities", async () => {
   const calls = [];
   const client = createAxiomBootstrapClient({
-    env: { AXIOM_BOOTSTRAP_TOKEN: "xaat-bootstrap" },
+    env: { AXIOM_BOOTSTRAP_TOKEN: "xaat-bootstrap", AXIOM_BOOTSTRAP_CONFIG_PATH: ISOLATED_BOOTSTRAP_PATH },
     fetchImpl: async (url, init) => {
       calls.push({ url: String(url), method: init.method, body: init.body });
       return jsonResponse({
@@ -62,7 +67,7 @@ test("bootstrap client mints a working token with dataset capabilities", async (
 
 test("mintWorkingToken accepts datasets shortcut → defaults to query-only", async () => {
   const client = createAxiomBootstrapClient({
-    env: { AXIOM_BOOTSTRAP_TOKEN: "t" },
+    env: { AXIOM_BOOTSTRAP_TOKEN: "t", AXIOM_BOOTSTRAP_CONFIG_PATH: ISOLATED_BOOTSTRAP_PATH },
     fetchImpl: async (url, init) => {
       const body = JSON.parse(init.body);
       // Confirm the dataset cap shape
@@ -78,7 +83,7 @@ test("mintWorkingToken accepts datasets shortcut → defaults to query-only", as
 
 test("mintWorkingToken with explicit datasetCapabilities overrides shortcut", async () => {
   const client = createAxiomBootstrapClient({
-    env: { AXIOM_BOOTSTRAP_TOKEN: "t" },
+    env: { AXIOM_BOOTSTRAP_TOKEN: "t", AXIOM_BOOTSTRAP_CONFIG_PATH: ISOLATED_BOOTSTRAP_PATH },
     fetchImpl: async (url, init) => {
       const body = JSON.parse(init.body);
       assert.deepEqual(body.datasetCapabilities, {
@@ -97,7 +102,7 @@ test("mintWorkingToken with explicit datasetCapabilities overrides shortcut", as
 
 test("mintWorkingToken throws when name missing", async () => {
   const client = createAxiomBootstrapClient({
-    env: { AXIOM_BOOTSTRAP_TOKEN: "t" },
+    env: { AXIOM_BOOTSTRAP_TOKEN: "t", AXIOM_BOOTSTRAP_CONFIG_PATH: ISOLATED_BOOTSTRAP_PATH },
     fetchImpl: async () => jsonResponse({}),
   });
   await assert.rejects(
@@ -108,7 +113,7 @@ test("mintWorkingToken throws when name missing", async () => {
 
 test("mintWorkingToken throws when neither datasets nor datasetCapabilities given", async () => {
   const client = createAxiomBootstrapClient({
-    env: { AXIOM_BOOTSTRAP_TOKEN: "t" },
+    env: { AXIOM_BOOTSTRAP_TOKEN: "t", AXIOM_BOOTSTRAP_CONFIG_PATH: ISOLATED_BOOTSTRAP_PATH },
     fetchImpl: async () => jsonResponse({}),
   });
   await assert.rejects(
@@ -119,7 +124,7 @@ test("mintWorkingToken throws when neither datasets nor datasetCapabilities give
 
 test("mintWorkingToken throws when token missing on response", async () => {
   const client = createAxiomBootstrapClient({
-    env: { AXIOM_BOOTSTRAP_TOKEN: "t" },
+    env: { AXIOM_BOOTSTRAP_TOKEN: "t", AXIOM_BOOTSTRAP_CONFIG_PATH: ISOLATED_BOOTSTRAP_PATH },
     fetchImpl: async () => jsonResponse({ id: "tok-id" /* no token */ }),
   });
   await assert.rejects(
@@ -130,7 +135,7 @@ test("mintWorkingToken throws when token missing on response", async () => {
 
 test("bootstrap client throws cleanly when token missing (no HTTP attempted)", async () => {
   const client = createAxiomBootstrapClient({
-    env: {},
+    env: { AXIOM_BOOTSTRAP_CONFIG_PATH: ISOLATED_BOOTSTRAP_PATH },
     fetchImpl: async () => {
       throw new Error("fetch should not be called");
     },
@@ -143,7 +148,7 @@ test("bootstrap client throws cleanly when token missing (no HTTP attempted)", a
 
 test("listAccessibleDatasets returns datasets when bootstrap has Query scope", async () => {
   const client = createAxiomBootstrapClient({
-    env: { AXIOM_BOOTSTRAP_TOKEN: "t" },
+    env: { AXIOM_BOOTSTRAP_TOKEN: "t", AXIOM_BOOTSTRAP_CONFIG_PATH: ISOLATED_BOOTSTRAP_PATH },
     fetchImpl: async (url) => {
       if (String(url).includes("/v1/datasets")) {
         return jsonResponse([{ name: "ds1" }, { name: "ds2" }]);
@@ -159,7 +164,7 @@ test("listAccessibleDatasets returns datasets when bootstrap has Query scope", a
 
 test("listAccessibleDatasets reports narrow bootstrap when 403", async () => {
   const client = createAxiomBootstrapClient({
-    env: { AXIOM_BOOTSTRAP_TOKEN: "t" },
+    env: { AXIOM_BOOTSTRAP_TOKEN: "t", AXIOM_BOOTSTRAP_CONFIG_PATH: ISOLATED_BOOTSTRAP_PATH },
     fetchImpl: async () => jsonResponse({ message: "forbidden" }, 403),
   });
   const result = await client.listAccessibleDatasets();
@@ -171,7 +176,11 @@ test("listAccessibleDatasets reports narrow bootstrap when 403", async () => {
 test("bootstrap client sends x-axiom-org-id header when orgId set", async () => {
   let capturedHeaders;
   const client = createAxiomBootstrapClient({
-    env: { AXIOM_BOOTSTRAP_TOKEN: "t", AXIOM_ORG_ID: "my-org" },
+    env: {
+      AXIOM_BOOTSTRAP_TOKEN: "t",
+      AXIOM_ORG_ID: "my-org",
+      AXIOM_BOOTSTRAP_CONFIG_PATH: ISOLATED_BOOTSTRAP_PATH,
+    },
     fetchImpl: async (url, init) => {
       capturedHeaders = init.headers;
       return jsonResponse([]);
@@ -179,4 +188,26 @@ test("bootstrap client sends x-axiom-org-id header when orgId set", async () => 
   });
   await client.validate();
   assert.equal(capturedHeaders["x-axiom-org-id"], "my-org");
+});
+
+// Regression: a stored bootstrap config writes apiBaseUrl: "" when the user
+// accepts the default during the bootstrap flow. The reader uses `??` which
+// only catches null/undefined — empty string would slip through and produce
+// `new URL("v1/datasets", "/")` → "Invalid URL".
+test("bootstrap client falls back to default API base when stored apiBaseUrl is empty string", async () => {
+  let capturedUrl;
+  const client = createAxiomBootstrapClient({
+    env: {
+      AXIOM_BOOTSTRAP_TOKEN: "t",
+      // Simulate the empty string that pickString lets through as a fallback
+      AXIOM_API_BASE_URL: "",
+      AXIOM_BOOTSTRAP_CONFIG_PATH: ISOLATED_BOOTSTRAP_PATH,
+    },
+    fetchImpl: async (url) => {
+      capturedUrl = String(url);
+      return jsonResponse([]);
+    },
+  });
+  await client.listAccessibleDatasets();
+  assert.match(capturedUrl, /^https:\/\/api\.axiom\.co\/v1\/datasets$/);
 });
