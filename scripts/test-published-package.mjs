@@ -220,7 +220,8 @@ const testProjectDependencyUsage = async ({
           createCloudflareClient,
           createNamecheapClient,
           createRailwayClient,
-          createNpmClient
+          createNpmClient,
+          createAxiomClient
         } from "${packageName}";
         import { encodePackageName } from "${packageName}/npm";
 
@@ -231,6 +232,7 @@ const testProjectDependencyUsage = async ({
             createNamecheapClient: typeof createNamecheapClient,
             createRailwayClient: typeof createRailwayClient,
             createNpmClient: typeof createNpmClient,
+            createAxiomClient: typeof createAxiomClient,
             encodePackageName: encodePackageName("@scope/pkg")
           }
         }));
@@ -246,12 +248,14 @@ const testProjectDependencyUsage = async ({
         "namecheap",
         "railway",
         "npm",
+        "axiom",
       ]);
       assert.deepEqual(importCheck.exports, {
         createCloudflareClient: "function",
         createNamecheapClient: "function",
         createRailwayClient: "function",
         createNpmClient: "function",
+        createAxiomClient: "function",
         encodePackageName: "%40scope%2Fpkg",
       });
     },
