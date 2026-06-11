@@ -55,6 +55,21 @@ if (args[0] === "railway") {
   process.exit(0);
 }
 
+if (args[0] === "axiom") {
+  // Operational CLI surface for Axiom (queries, datasets, dashboards).
+  // runAxiomCli prints JSON + calls process.exit itself (shared cli-runner).
+  const { runAxiomCli } = await import("./tools/axiom/cli.mjs");
+  await runAxiomCli(args.slice(1));
+  process.exit(0);
+}
+
+if (args[0] === "cloudflare") {
+  // Operational CLI surface for Cloudflare (DNS, R2, tunnels).
+  const { runCloudflareCli } = await import("./tools/cloudflare/cli.mjs");
+  await runCloudflareCli(args.slice(1));
+  process.exit(0);
+}
+
 if (args[0] === "mcp") {
   const toolName = args[1];
   if (!toolName) {

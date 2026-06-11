@@ -7,7 +7,7 @@
  *   - `bun zero doctor` (future — cross-check connections against required scopes)
  *
  * Keep this flat. We are NOT building an exhaustive per-operation capability
- * matrix; we're declaring what Zeroframe's actual flows need. New scopes only
+ * matrix; we're declaring what zeroframe's actual flows need. New scopes only
  * land here when a new flow needs them.
  *
  * The `id` field uses Cloudflare's permission-group identifier where possible
@@ -72,7 +72,7 @@ export const CAPABILITIES = Object.freeze({
     ],
     dashboard_token_url: "https://railway.com/account/tokens",
     bootstrap_note:
-      "Railway tokens come in two flavours: account tokens (broad — used for most ops) and project tokens (scoped to one project). Zeroframe uses an account token at connect time and creates project tokens as needed.",
+      "Railway tokens come in two flavours: account tokens (broad — used for most ops) and project tokens (scoped to one project). zeroframe uses an account token at connect time and creates project tokens as needed.",
   },
 
   namecheap: {

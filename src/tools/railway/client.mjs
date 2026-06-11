@@ -1198,7 +1198,7 @@ export const createRailwayClient = ({
     //      proof (status.verificationDnsHost when present)
     //
     // Both must exist before Railway will issue a TLS cert. This was a
-    // 30-minute footgun in Zeroframe test #2 — the wrapper now surfaces them.
+    // 30-minute footgun in zeroframe test #2 — the wrapper now surfaces them.
     const requiredDnsRecords = buildRequiredDnsRecords(created);
 
     return {
@@ -1647,7 +1647,7 @@ const formatRailwayErrorMessage = (payload, status) => {
 // Railway token (broad reach across workspaces). It is used to list
 // workspaces/projects and to mint project-scoped working tokens via
 // projectTokenCreate. Working tokens are written per-project to
-// .zeroframe/credentials/railway.json so each Zeroframe project carries
+// .zeroframe/credentials/railway.json so each zeroframe project carries
 // credentials scoped to one Railway project.
 
 export const createRailwayBootstrapClient = ({
