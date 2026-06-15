@@ -8,7 +8,7 @@ import {
   openBrowser,
   parseFormBody,
   pickString,
-  readJsonConfig,
+  readJsonConfigSync,
   removeJsonConfig,
   resolveConfigPath,
   writeJsonConfig,
@@ -21,8 +21,8 @@ const AUTH_CONFIG_PATH = resolveConfigPath({
 });
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 
-const resolveStoredConfig = async () => {
-  const stored = await readJsonConfig(AUTH_CONFIG_PATH);
+const resolveStoredConfigSync = () => {
+  const stored = readJsonConfigSync(AUTH_CONFIG_PATH);
   if (stored) {
     return stored;
   }
@@ -31,7 +31,54 @@ const resolveStoredConfig = async () => {
     ? AUTH_CONFIG_PATH.replace(/namecheap\.json$/, "namecheap-auth.json")
     : null;
 
-  return legacyPath ? await readJsonConfig(legacyPath) : null;
+  return legacyPath ? readJsonConfigSync(legacyPath) : null;
+};
+
+// Single sync source of truth for resolved Namecheap credentials — matches how
+// every other provider's client auto-resolves: explicit overrides → env vars →
+// stored config file. `createNamecheapClient` uses this so it "just works" like
+// `createRailwayClient()` etc., without a separate resolved-factory.
+export const resolveNamecheapCredentials = (overrides = {}) => {
+  const stored = resolveStoredConfigSync();
+  const sandboxEnv = process.env.NAMECHEAP_API_SANDBOX;
+  // pickString(value, fallback) is 2-arity, so chain by precedence:
+  // explicit override → env var → stored file.
+  const pick = (override, envValue, storedValue) =>
+    pickString(override, pickString(envValue, storedValue));
+  const apiUser = pick(
+    overrides.apiUser,
+    process.env.NAMECHEAP_API_USER,
+    stored?.apiUser,
+  );
+  return {
+    apiUser,
+    apiKey: pick(overrides.apiKey, process.env.NAMECHEAP_API_KEY, stored?.apiKey),
+    // Namecheap UserName defaults to ApiUser for non-reseller accounts.
+    username:
+      pick(
+        overrides.username,
+        process.env.NAMECHEAP_USERNAME,
+        stored?.username,
+      ) ?? apiUser,
+    clientIp: pick(
+      overrides.clientIp,
+      process.env.NAMECHEAP_CLIENT_IP,
+      stored?.clientIp,
+    ),
+    baseUrl: pick(
+      overrides.baseUrl,
+      process.env.NAMECHEAP_API_BASE_URL,
+      stored?.baseUrl,
+    ),
+    sandbox:
+      typeof overrides.sandbox === "boolean"
+        ? overrides.sandbox
+        : sandboxEnv != null
+          ? isTruthyEnv(sandboxEnv)
+          : typeof stored?.sandbox === "boolean"
+            ? stored.sandbox
+            : false,
+  };
 };
 
 export const resolvePublicIpv4 = async ({
@@ -60,33 +107,16 @@ export const resolvePublicIpv4 = async ({
 };
 
 export const getResolvedAuthConfig = async () => {
-  const stored = await resolveStoredConfig();
-  const sandboxEnv = process.env.NAMECHEAP_API_SANDBOX;
-
-  const config = {
-    apiUser: pickString(process.env.NAMECHEAP_API_USER, stored?.apiUser),
-    apiKey: pickString(process.env.NAMECHEAP_API_KEY, stored?.apiKey),
-    username: pickString(process.env.NAMECHEAP_USERNAME, stored?.username),
-    clientIp: pickString(process.env.NAMECHEAP_CLIENT_IP, stored?.clientIp),
-    baseUrl: pickString(process.env.NAMECHEAP_API_BASE_URL, stored?.baseUrl),
-    sandbox:
-      sandboxEnv != null
-        ? isTruthyEnv(sandboxEnv)
-        : typeof stored?.sandbox === "boolean"
-          ? stored.sandbox
-          : false,
-    source:
-      process.env.NAMECHEAP_API_USER ||
+  const config = resolveNamecheapCredentials();
+  const usingEnv = Boolean(
+    process.env.NAMECHEAP_API_USER ||
       process.env.NAMECHEAP_API_KEY ||
       process.env.NAMECHEAP_USERNAME ||
-      process.env.NAMECHEAP_CLIENT_IP
-        ? "env"
-        : stored
-          ? "file"
-          : "none",
-  };
+      process.env.NAMECHEAP_CLIENT_IP,
+  );
+  const source = usingEnv ? "env" : resolveStoredConfigSync() ? "file" : "none";
 
-  return config;
+  return { ...config, source };
 };
 
 export const getAuthStatus = async () => {
