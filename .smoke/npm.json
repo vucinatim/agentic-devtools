@@ -1,7 +1,7 @@
 {
   "provider": "npm",
-  "ranAt": "2026-06-15T11:10:57.803Z",
-  "inputHash": "c9692f24a6b63aca31fd18bec9077b8e3fe6b95e48639604cf349a58c11ced9c",
+  "ranAt": "2026-06-15T13:32:23.038Z",
+  "inputHash": "468835ba8cf844a5afb9ec3a0b17919b0dd4856c1c7220b834d5acd6e681cbe7",
   "ok": true,
   "operations": [
     "getNpmAuthStatus",
