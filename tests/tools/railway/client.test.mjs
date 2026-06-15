@@ -886,6 +886,95 @@ test("manages Railway environments, variables, domains, volumes, and deployment 
   });
 });
 
+test("listVariables returns the resolved variable map with scope + count", async () => {
+  const calls = [];
+  const client = createRailwayClient({
+    env: { RAILWAY_API_TOKEN: "account-token" },
+    fetchImpl: async (url, init) => {
+      calls.push(parseGraphqlRequest(init));
+      return jsonResponse({
+        data: { variables: { FOO: "bar", BAZ: "qux" } },
+      });
+    },
+  });
+
+  const result = await client.listVariables({
+    projectId: "project-id",
+    environmentId: "env-id",
+    serviceId: "service-id",
+  });
+
+  assert.equal(result.count, 2);
+  assert.equal(result.scope, "service");
+  assert.deepEqual(result.variables, { FOO: "bar", BAZ: "qux" });
+  assert.deepEqual(calls[0].variables, {
+    projectId: "project-id",
+    environmentId: "env-id",
+    serviceId: "service-id",
+  });
+});
+
+test("listVariables requires projectId and environmentId", async () => {
+  const client = createRailwayClient({
+    env: { RAILWAY_API_TOKEN: "account-token" },
+    fetchImpl: async () => jsonResponse({ data: {} }),
+  });
+
+  await assert.rejects(
+    () => client.listVariables({ projectId: "project-id" }),
+    RailwayApiError,
+  );
+});
+
+test("getCustomDomain returns the domain with required DNS records", async () => {
+  const client = createRailwayClient({
+    env: { RAILWAY_API_TOKEN: "account-token" },
+    fetchImpl: async () =>
+      jsonResponse({
+        data: {
+          customDomain: {
+            id: "cd-1",
+            domain: "app.example.com",
+            environmentId: "env-id",
+            projectId: "project-id",
+            status: {
+              certificateStatus: "CERTIFICATE_STATUS_TYPE_PENDING",
+              dnsRecords: [],
+            },
+          },
+        },
+      }),
+  });
+
+  const result = await client.getCustomDomain("cd-1");
+  assert.equal(result.id, "cd-1");
+  assert.equal(result.domain, "app.example.com");
+  assert.ok(Array.isArray(result.requiredDnsRecords));
+});
+
+test("waitForCustomDomain resolves when the cert is VALID", async () => {
+  const client = createRailwayClient({
+    env: { RAILWAY_API_TOKEN: "account-token" },
+    fetchImpl: async () =>
+      jsonResponse({
+        data: {
+          customDomain: {
+            id: "cd-1",
+            domain: "app.example.com",
+            status: {
+              certificateStatus: "CERTIFICATE_STATUS_TYPE_VALID",
+              dnsRecords: [],
+            },
+          },
+        },
+      }),
+  });
+
+  const result = await client.waitForCustomDomain({ customDomainId: "cd-1" });
+  assert.equal(result.ok, true);
+  assert.equal(result.customDomainId, "cd-1");
+});
+
 const jsonResponse = (payload, { ok = true, status = 200 } = {}) => ({
   ok,
   status,

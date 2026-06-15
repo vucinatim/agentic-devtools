@@ -243,7 +243,7 @@ export const runCloudflareBootstrapFlow = async ({
     <div class="wrap">
       <div class="panel">
         <h1>Bootstrap Cloudflare</h1>
-        <p>You'll do this once per machine. After bootstrap, every Zeroframe project gets its own account-scoped working token automatically — no more dashboard clicks.</p>
+        <p>You'll do this once per machine. After bootstrap, every zeroframe project gets its own account-scoped working token automatically — no more dashboard clicks.</p>
 
         <div class="callout">
           <strong>One template, one click.</strong> Cloudflare ships a built-in template called <strong>“Create Additional Tokens”</strong> that pre-selects exactly the one scope a bootstrap needs (<code>User → API Tokens → Edit</code>). You do <em>not</em> need to find anything in the 200-row Custom Token list.
@@ -326,6 +326,39 @@ export const runCloudflareBootstrapFlow = async ({
             );
           }
 
+          // The bootstrap's WHOLE job is minting account-scoped working
+          // tokens. A token can only do that if it carries `User > API
+          // Tokens > Edit`. The most common failure: the user pastes a
+          // *sub-token* (one that was itself minted by another token, or an
+          // account-scoped token). Sub-tokens pass /user/tokens/verify (they
+          // ARE active) but Cloudflare forbids them from managing other
+          // tokens — so they fail later, opaquely, at first mint.
+          //
+          // Catch it HERE by probing the token-management surface
+          // (/user/tokens/permission_groups requires User API Tokens read).
+          // A 403 means "this is not a valid bootstrap" — refuse with the fix.
+          const probeResponse = await fetch(
+            `${DEFAULT_CLOUDFLARE_API_BASE_URL}/user/tokens/permission_groups`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+          if (probeResponse.status === 403 || probeResponse.status === 401) {
+            throw new Error(
+              [
+                "This token can authenticate, but it cannot mint other tokens —",
+                "it's a sub-token (account-scoped or itself minted by another",
+                "token). The bootstrap needs `User > API Tokens > Edit`.",
+                "",
+                "Fix: create the bootstrap from the dedicated template —",
+                "https://dash.cloudflare.com/profile/api-tokens → Create Token →",
+                "\"Create Additional Tokens\" template → Continue → Create. That",
+                "template grants the token-management permission. Paste THAT token.",
+              ].join("\n"),
+            );
+          }
+          // Any other probe failure (network, 5xx) is non-fatal — verify
+          // already passed, so save and let real ops surface API issues with
+          // their structured remediation.
+
           await saveCloudflareBootstrapToken({ token });
 
           response.writeHead(200, {
@@ -336,7 +369,7 @@ export const runCloudflareBootstrapFlow = async ({
 <body style="font-family:ui-sans-serif,sans-serif;padding:32px;background:#f6f7fb;color:#17181c;">
 <h1>Bootstrap saved</h1>
 <p>Stored at <code>${escapeHtml(CLOUDFLARE_BOOTSTRAP_CONFIG_PATH)}</code>.</p>
-<p>You can close this window. Zeroframe will use this token to mint
+<p>You can close this window. zeroframe will use this token to mint
 account-scoped working tokens for each project automatically.</p>
 </body></html>`);
 

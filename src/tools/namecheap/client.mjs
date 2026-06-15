@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import { getResolvedAuthConfig } from "./auth.mjs";
+import { resolveNamecheapCredentials } from "./auth.mjs";
 
 const DEFAULT_BASE_URL = "https://api.namecheap.com/xml.response";
 const SANDBOX_BASE_URL = "https://api.sandbox.namecheap.com/xml.response";
@@ -301,15 +301,13 @@ export class NamecheapApiError extends Error {
   }
 }
 
-export const createNamecheapClient = ({
-  apiUser,
-  apiKey,
-  username,
-  clientIp,
-  baseUrl,
-  sandbox,
-  fetchImpl = globalThis.fetch,
-} = {}) => {
+export const createNamecheapClient = (overrides = {}) => {
+  const { fetchImpl = globalThis.fetch } = overrides;
+  // Auto-resolve credentials (explicit overrides → env → stored config file),
+  // the same way every other provider's client does. This is why the smoke and
+  // MCP can call createNamecheapClient() with no args.
+  const { apiUser, apiKey, username, clientIp, baseUrl, sandbox } =
+    resolveNamecheapCredentials(overrides);
   if (!apiUser) {
     throw new Error("Missing NAMECHEAP_API_USER.");
   }
@@ -639,17 +637,8 @@ export const createNamecheapClient = ({
   };
 };
 
-export const createResolvedNamecheapClient = async (options = {}) => {
-  const auth = await getResolvedAuthConfig();
-
-  return createNamecheapClient({
-    apiUser: options.apiUser ?? auth.apiUser,
-    apiKey: options.apiKey ?? auth.apiKey,
-    username: options.username ?? auth.username ?? auth.apiUser,
-    clientIp: options.clientIp ?? auth.clientIp,
-    baseUrl: options.baseUrl ?? auth.baseUrl,
-    sandbox:
-      options.sandbox ?? (typeof auth.sandbox === "boolean" ? auth.sandbox : false),
-    fetchImpl: options.fetchImpl,
-  });
-};
+// Back-compat async factory. createNamecheapClient now auto-resolves creds
+// itself (env → stored file), so this is just a thin async wrapper kept for
+// existing callers.
+export const createResolvedNamecheapClient = async (options = {}) =>
+  createNamecheapClient(options);

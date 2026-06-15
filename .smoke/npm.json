@@ -1,0 +1,12 @@
+{
+  "provider": "npm",
+  "ranAt": "2026-06-15T11:10:57.803Z",
+  "inputHash": "c9692f24a6b63aca31fd18bec9077b8e3fe6b95e48639604cf349a58c11ced9c",
+  "ok": true,
+  "operations": [
+    "getNpmAuthStatus",
+    "getCurrentUser"
+  ],
+  "username": "vucinatim",
+  "registry": "https://registry.npmjs.org"
+}

@@ -8,7 +8,7 @@ import {
   openBrowser,
   parseFormBody,
   pickString,
-  readJsonConfig,
+  readJsonConfigSync,
   removeJsonConfig,
   resolveConfigPath,
   writeJsonConfig,
@@ -21,8 +21,8 @@ const AUTH_CONFIG_PATH = resolveConfigPath({
 });
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 
-const resolveStoredConfig = async () => {
-  const stored = await readJsonConfig(AUTH_CONFIG_PATH);
+const resolveStoredConfigSync = () => {
+  const stored = readJsonConfigSync(AUTH_CONFIG_PATH);
   if (stored) {
     return stored;
   }
@@ -31,7 +31,54 @@ const resolveStoredConfig = async () => {
     ? AUTH_CONFIG_PATH.replace(/namecheap\.json$/, "namecheap-auth.json")
     : null;
 
-  return legacyPath ? await readJsonConfig(legacyPath) : null;
+  return legacyPath ? readJsonConfigSync(legacyPath) : null;
+};
+
+// Single sync source of truth for resolved Namecheap credentials — matches how
+// every other provider's client auto-resolves: explicit overrides → env vars →
+// stored config file. `createNamecheapClient` uses this so it "just works" like
+// `createRailwayClient()` etc., without a separate resolved-factory.
+export const resolveNamecheapCredentials = (overrides = {}) => {
+  const stored = resolveStoredConfigSync();
+  const sandboxEnv = process.env.NAMECHEAP_API_SANDBOX;
+  // pickString(value, fallback) is 2-arity, so chain by precedence:
+  // explicit override → env var → stored file.
+  const pick = (override, envValue, storedValue) =>
+    pickString(override, pickString(envValue, storedValue));
+  const apiUser = pick(
+    overrides.apiUser,
+    process.env.NAMECHEAP_API_USER,
+    stored?.apiUser,
+  );
+  return {
+    apiUser,
+    apiKey: pick(overrides.apiKey, process.env.NAMECHEAP_API_KEY, stored?.apiKey),
+    // Namecheap UserName defaults to ApiUser for non-reseller accounts.
+    username:
+      pick(
+        overrides.username,
+        process.env.NAMECHEAP_USERNAME,
+        stored?.username,
+      ) ?? apiUser,
+    clientIp: pick(
+      overrides.clientIp,
+      process.env.NAMECHEAP_CLIENT_IP,
+      stored?.clientIp,
+    ),
+    baseUrl: pick(
+      overrides.baseUrl,
+      process.env.NAMECHEAP_API_BASE_URL,
+      stored?.baseUrl,
+    ),
+    sandbox:
+      typeof overrides.sandbox === "boolean"
+        ? overrides.sandbox
+        : sandboxEnv != null
+          ? isTruthyEnv(sandboxEnv)
+          : typeof stored?.sandbox === "boolean"
+            ? stored.sandbox
+            : false,
+  };
 };
 
 export const resolvePublicIpv4 = async ({
@@ -60,33 +107,16 @@ export const resolvePublicIpv4 = async ({
 };
 
 export const getResolvedAuthConfig = async () => {
-  const stored = await resolveStoredConfig();
-  const sandboxEnv = process.env.NAMECHEAP_API_SANDBOX;
-
-  const config = {
-    apiUser: pickString(process.env.NAMECHEAP_API_USER, stored?.apiUser),
-    apiKey: pickString(process.env.NAMECHEAP_API_KEY, stored?.apiKey),
-    username: pickString(process.env.NAMECHEAP_USERNAME, stored?.username),
-    clientIp: pickString(process.env.NAMECHEAP_CLIENT_IP, stored?.clientIp),
-    baseUrl: pickString(process.env.NAMECHEAP_API_BASE_URL, stored?.baseUrl),
-    sandbox:
-      sandboxEnv != null
-        ? isTruthyEnv(sandboxEnv)
-        : typeof stored?.sandbox === "boolean"
-          ? stored.sandbox
-          : false,
-    source:
-      process.env.NAMECHEAP_API_USER ||
+  const config = resolveNamecheapCredentials();
+  const usingEnv = Boolean(
+    process.env.NAMECHEAP_API_USER ||
       process.env.NAMECHEAP_API_KEY ||
       process.env.NAMECHEAP_USERNAME ||
-      process.env.NAMECHEAP_CLIENT_IP
-        ? "env"
-        : stored
-          ? "file"
-          : "none",
-  };
+      process.env.NAMECHEAP_CLIENT_IP,
+  );
+  const source = usingEnv ? "env" : resolveStoredConfigSync() ? "file" : "none";
 
-  return config;
+  return { ...config, source };
 };
 
 export const getAuthStatus = async () => {
@@ -230,10 +260,9 @@ const renderPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype ht
             : ""
         }
         <ol>
-          <li>Open <a href="https://www.namecheap.com/support/knowledgebase/article.aspx/763/63/what-is-sandbox/" target="_blank" rel="noreferrer">Sandbox setup</a> if you want safe testing first.</li>
-          <li>Open <a href="https://ap.www.namecheap.com/settings/tools/apiaccess/" target="_blank" rel="noreferrer">production API access</a> or the Sandbox account’s API access page.</li>
-          <li>Enable API access and whitelist the same IPv4 address you enter as <code>Client IP</code>.</li>
-          <li>Copy your API user, API key, and username into this form.</li>
+          <li>Open <a href="https://ap.www.namecheap.com/settings/tools/apiaccess/" target="_blank" rel="noreferrer">Namecheap API Access</a>, toggle it <strong>ON</strong>, and whitelist the IPv4 above (it must match <code>Client IP</code> below).</li>
+          <li>Copy your <strong>API Key</strong> and enter your Namecheap <strong>username</strong> below.</li>
+          <li>Leave <strong>Use Sandbox account</strong> unchecked for your real account. (Sandbox is a separate test environment with its own login + key — only for scripting against fake domains. <a href="https://www.namecheap.com/support/knowledgebase/article.aspx/763/63/what-is-sandbox/" target="_blank" rel="noreferrer">What's Sandbox?</a>)</li>
         </ol>
         ${
           message
@@ -242,16 +271,10 @@ const renderPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype ht
         }
         <form method="post" action="/save">
           <input type="hidden" name="csrfToken" value="${escapeHtml(csrfToken)}" />
-          <div class="row">
-            <label>
-              API User
-              <input name="apiUser" type="text" value="${escapeHtml(defaults.apiUser ?? "")}" required />
-            </label>
-            <label>
-              Username
-              <input name="username" type="text" value="${escapeHtml(defaults.username ?? "")}" required />
-            </label>
-          </div>
+          <label>
+            Namecheap Username
+            <input name="username" type="text" value="${escapeHtml(defaults.username ?? defaults.apiUser ?? "")}" required />
+          </label>
           <label>
             API Key
             <input name="apiKey" type="password" value="${escapeHtml(defaults.apiKey ?? "")}" required />
@@ -278,7 +301,7 @@ const renderPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype ht
 </html>`;
 
 export const runBrowserAuthFlow = async ({
-  defaultSandbox = true,
+  defaultSandbox = false,
   fetchImpl = globalThis.fetch,
   validateConnection = true,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -334,10 +357,16 @@ export const runBrowserAuthFlow = async ({
             return;
           }
 
+          // Namecheap's API takes both ApiUser (key owner) and UserName (account
+          // acted on). They're identical except for resellers, so the form
+          // collects one "username" and we use it for both. A reseller can still
+          // override ApiUser via the NAMECHEAP_API_USER env var.
+          const apiUser = body.apiUser || body.username;
+
           if (validateConnection) {
             const { createNamecheapClient } = await import("./client.mjs");
             const client = createNamecheapClient({
-              apiUser: body.apiUser,
+              apiUser,
               apiKey: body.apiKey,
               username: body.username,
               clientIp: body.clientIp,
@@ -348,7 +377,7 @@ export const runBrowserAuthFlow = async ({
           }
 
           const saved = await saveAuthConfig({
-            apiUser: body.apiUser,
+            apiUser,
             apiKey: body.apiKey,
             username: body.username,
             clientIp: body.clientIp,

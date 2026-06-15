@@ -235,7 +235,7 @@ const renderNpmPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype
         <h1>Connect npm</h1>
         <p>npm does not provide a normal third-party OAuth login for local tools. Create a granular token, paste it here, and Agentic Devtools will store it locally.</p>
         <ol>
-          <li>Open <a href="https://www.npmjs.com/settings/-/tokens" target="_blank" rel="noreferrer">npm access tokens</a>.</li>
+          <li>Open <a href="https://www.npmjs.com/settings/~/tokens" target="_blank" rel="noreferrer">npm access tokens</a> (<code>~</code> resolves to whoever is logged in).</li>
           <li>Create the narrowest granular token that matches your task.</li>
           <li>For publishing, prefer GitHub Actions Trusted Publishing instead of long-lived write tokens.</li>
         </ol>

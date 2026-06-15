@@ -180,7 +180,7 @@ test("resolveCloudflarePermissionGroups batches multiple specs", async () => {
   assert.equal(results[1].id, "id-api-tokens-write-user");
 });
 
-test("CLOUDFLARE_PERMISSION_GROUP_FALLBACKS table is exhaustive for Zeroframe's needs", () => {
+test("CLOUDFLARE_PERMISSION_GROUP_FALLBACKS table is exhaustive for zeroframe's needs", () => {
   // These are the names our hardcoded specs reference. Each must resolve in
   // the fallback even if the live API is down.
   const required = [

@@ -1,8 +1,8 @@
-# Zeroframe integration plan — `0.1.9`
+# zeroframe integration plan — `0.1.9`
 
 > Mirror of the canonical plan at
 > `/Users/timvucina/Desktop/zeroframe/docs/agentic-devtools-rebuild.md`.
-> The canonical doc lives in the consuming repo (Zeroframe) because the contract
+> The canonical doc lives in the consuming repo (zeroframe) because the contract
 > is driven by what agents need to do in projects. This mirror exists so
 > contributors to agentic-devtools have the full context without leaving the repo.
 
@@ -206,7 +206,7 @@ server.registerTool(
 ## Sequence (across both repos)
 
 See canonical plan for the full Gantt. agentic-devtools-side work is May 21–22.
-Zeroframe template-side work is May 23.
+zeroframe template-side work is May 23.
 
 ## Verification (agentic-devtools side)
 
