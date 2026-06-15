@@ -231,7 +231,7 @@ const renderPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype ht
         }
         <ol>
           <li>Open <a href="https://ap.www.namecheap.com/settings/tools/apiaccess/" target="_blank" rel="noreferrer">Namecheap API Access</a>, toggle it <strong>ON</strong>, and whitelist the IPv4 above (it must match <code>Client IP</code> below).</li>
-          <li>Copy your <strong>API Key</strong>. For <strong>API User</strong> and <strong>Username</strong>, use your Namecheap account username — they're the same unless you're a reseller.</li>
+          <li>Copy your <strong>API Key</strong> and enter your Namecheap <strong>username</strong> below.</li>
           <li>Leave <strong>Use Sandbox account</strong> unchecked for your real account. (Sandbox is a separate test environment with its own login + key — only for scripting against fake domains. <a href="https://www.namecheap.com/support/knowledgebase/article.aspx/763/63/what-is-sandbox/" target="_blank" rel="noreferrer">What's Sandbox?</a>)</li>
         </ol>
         ${
@@ -241,16 +241,10 @@ const renderPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype ht
         }
         <form method="post" action="/save">
           <input type="hidden" name="csrfToken" value="${escapeHtml(csrfToken)}" />
-          <div class="row">
-            <label>
-              API User <span style="font-weight:400; opacity:0.6;">— your Namecheap username</span>
-              <input name="apiUser" type="text" value="${escapeHtml(defaults.apiUser ?? "")}" required />
-            </label>
-            <label>
-              Username <span style="font-weight:400; opacity:0.6;">— same as API User</span>
-              <input name="username" type="text" value="${escapeHtml(defaults.username ?? "")}" required />
-            </label>
-          </div>
+          <label>
+            Namecheap Username
+            <input name="username" type="text" value="${escapeHtml(defaults.username ?? defaults.apiUser ?? "")}" required />
+          </label>
           <label>
             API Key
             <input name="apiKey" type="password" value="${escapeHtml(defaults.apiKey ?? "")}" required />
@@ -333,10 +327,16 @@ export const runBrowserAuthFlow = async ({
             return;
           }
 
+          // Namecheap's API takes both ApiUser (key owner) and UserName (account
+          // acted on). They're identical except for resellers, so the form
+          // collects one "username" and we use it for both. A reseller can still
+          // override ApiUser via the NAMECHEAP_API_USER env var.
+          const apiUser = body.apiUser || body.username;
+
           if (validateConnection) {
             const { createNamecheapClient } = await import("./client.mjs");
             const client = createNamecheapClient({
-              apiUser: body.apiUser,
+              apiUser,
               apiKey: body.apiKey,
               username: body.username,
               clientIp: body.clientIp,
@@ -347,7 +347,7 @@ export const runBrowserAuthFlow = async ({
           }
 
           const saved = await saveAuthConfig({
-            apiUser: body.apiUser,
+            apiUser,
             apiKey: body.apiKey,
             username: body.username,
             clientIp: body.clientIp,
