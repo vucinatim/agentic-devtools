@@ -49,7 +49,7 @@ export const resolveSingleNamedResource = ({
     }
 
     throw new ErrorClass(
-      `${operation} needs a ${resourceLabel} selector because multiple ${resourceLabel}s are accessible: ${collection
+      `${operation} matched multiple ${resourceLabel}s — pass an explicit ${resourceLabel} id or name to choose one. Accessible: ${collection
         .slice(0, 10)
         .map((item) => getLabel(item))
         .join(", ")}.`,
