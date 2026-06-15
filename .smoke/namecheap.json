@@ -1,7 +1,7 @@
 {
   "provider": "namecheap",
-  "ranAt": "2026-06-15T13:32:23.582Z",
-  "inputHash": "bbb56e14421991c64f806103cc5a4bdc4b5b940a10708eb363e54f267fa2a137",
+  "ranAt": "2026-06-15T13:51:03.751Z",
+  "inputHash": "d91eb06c359dd39583f0cb0dcc849c87e14e8e87622066c52a5ab545d67e9232",
   "ok": true,
   "operations": [
     "getNamecheapAuthStatus",

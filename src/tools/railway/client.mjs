@@ -1,4 +1,9 @@
 import {
+	matchesSelector,
+	normalizeSelector,
+	resolveSingleNamedResource,
+} from "../../core/resolve-resource.mjs";
+import {
 	DEFAULT_RAILWAY_API_ENDPOINT,
 	getRailwayAuthStatus,
 	getRailwayBootstrapToken,
@@ -146,7 +151,7 @@ export const createRailwayClient = ({
 			includeDeleted: false,
 			first: 100,
 		});
-		const resolved = resolveSingleNamedResource({
+		const resolved = resolveRailwayResource({
 			items: projects,
 			requestedName: requestedProjectName,
 			getId: (project) => project.id,
@@ -197,7 +202,7 @@ export const createRailwayClient = ({
 		const project = await getProject(projectSelection.projectId);
 		const environments = project.environments ?? [];
 		const requestedEnvironmentName = pickString(environmentName);
-		const resolved = resolveSingleNamedResource({
+		const resolved = resolveRailwayResource({
 			items: environments,
 			requestedName: requestedEnvironmentName,
 			getId: (environment) => environment.id,
@@ -292,7 +297,7 @@ export const createRailwayClient = ({
 					name: entry.serviceName,
 				}),
 			);
-			const resolved = resolveSingleNamedResource({
+			const resolved = resolveRailwayResource({
 				items: services,
 				requestedName: requestedServiceName,
 				getId: (service) => service.id,
@@ -321,7 +326,7 @@ export const createRailwayClient = ({
 		});
 		const project = await getProject(projectSelection.projectId);
 		const services = project.services ?? [];
-		const resolved = resolveSingleNamedResource({
+		const resolved = resolveRailwayResource({
 			items: services,
 			requestedName: requestedServiceName,
 			getId: (service) => service.id,
@@ -1533,101 +1538,11 @@ const pickString = (...values) => {
 	return null;
 };
 
-const normalizeSelector = (value) =>
-	String(value ?? "")
-		.trim()
-		.toLowerCase();
-
-const matchesSelector = (candidate, requested) => {
-	const wanted = normalizeSelector(requested);
-	if (!wanted) {
-		return true;
-	}
-
-	const value = normalizeSelector(candidate);
-	return value.includes(wanted);
-};
-
-const resolveSingleNamedResource = ({
-	items,
-	requestedName,
-	getId,
-	getLabel,
-	resourceLabel,
-	operation,
-	fallbackResolver,
-}) => {
-	const collection = Array.isArray(items) ? items : [];
-
-	if (collection.length === 0) {
-		return null;
-	}
-
-	if (!requestedName) {
-		if (collection.length === 1) {
-			return {
-				id: getId(collection[0]),
-				label: getLabel(collection[0]),
-			};
-		}
-
-		const fallback =
-			typeof fallbackResolver === "function"
-				? fallbackResolver(collection)
-				: null;
-		if (fallback) {
-			return {
-				id: getId(fallback),
-				label: getLabel(fallback),
-			};
-		}
-
-		throw new RailwayApiError(
-			`${operation} matched multiple ${resourceLabel}s — pass an explicit ${resourceLabel} id or name to choose one. Accessible: ${collection
-				.slice(0, 10)
-				.map((item) => getLabel(item))
-				.join(", ")}.`,
-		);
-	}
-
-	const exactMatches = collection.filter(
-		(item) =>
-			normalizeSelector(getLabel(item)) === normalizeSelector(requestedName),
-	);
-
-	if (exactMatches.length === 1) {
-		return {
-			id: getId(exactMatches[0]),
-			label: getLabel(exactMatches[0]),
-		};
-	}
-
-	const fuzzyMatches = collection.filter((item) =>
-		matchesSelector(getLabel(item), requestedName),
-	);
-
-	if (fuzzyMatches.length === 1) {
-		return {
-			id: getId(fuzzyMatches[0]),
-			label: getLabel(fuzzyMatches[0]),
-		};
-	}
-
-	if (exactMatches.length > 1 || fuzzyMatches.length > 1) {
-		const matches = (exactMatches.length > 1 ? exactMatches : fuzzyMatches)
-			.slice(0, 10)
-			.map((item) => getLabel(item))
-			.join(", ");
-
-		throw new RailwayApiError(
-			`${operation} found multiple matching ${resourceLabel}s for "${requestedName}": ${matches}. Use the explicit ${resourceLabel} id if needed.`,
-		);
-	}
-
-	throw new RailwayApiError(
-		`${operation} could not find a matching ${resourceLabel} for "${requestedName}".`,
-	);
-};
+// Railway uses the shared core resolver, but its ambiguous-match errors should
+// be RailwayApiError so the error-mapper produces a railway-shaped structured
+// error. (Named-not-found returns null; call sites throw their own error.)
+const resolveRailwayResource = (options) =>
+	resolveSingleNamedResource({ ...options, ErrorClass: RailwayApiError });
 
 const hasErrors = (payload) =>
 	typeof payload === "object" &&
