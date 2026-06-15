@@ -30,6 +30,7 @@ export const railwayCliUsage = () => `Usage:
   agentic-devtools railway redeploy [selectors...]
   agentic-devtools railway set-variable [selectors...] --name <name> --value <value> [--skip-deploys]
   agentic-devtools railway delete-variable [selectors...] --name <name>
+  agentic-devtools railway list-variables [selectors...]
   agentic-devtools railway create-service-domain [selectors...] [--target-port <port>] [--input-json <json>]
   agentic-devtools railway update-service-domain [selectors...] [--domain <domain>] [--service-domain-id <id>] [--target-port <port>]
   agentic-devtools railway delete-service-domain [selectors...] [--domain <domain>] [--service-domain-id <id>]
@@ -427,6 +428,20 @@ export const runRailwayCli = async (
 				environmentId: environment.environmentId,
 				serviceId: service?.serviceId ?? undefined,
 				name: requireStringOption(options, "name", command),
+			});
+		}
+
+		case "list-variables": {
+			const environment = await resolveEnvironment(client, options, command);
+			const service =
+				hasSelector(options, "service-id") ||
+				hasSelector(options, "service-name")
+					? await resolveService(client, options, command)
+					: null;
+			return client.listVariables({
+				projectId: environment.projectId,
+				environmentId: environment.environmentId,
+				serviceId: service?.serviceId ?? undefined,
 			});
 		}
 
