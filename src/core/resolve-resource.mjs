@@ -11,7 +11,7 @@
  * a generic Error.
  */
 
-const normalizeSelector = (value) =>
+export const normalizeSelector = (value) =>
   String(value ?? "")
     .trim()
     .toLowerCase();
@@ -33,6 +33,10 @@ export const resolveSingleNamedResource = ({
   resourceLabel,
   operation,
   ErrorClass = Error,
+  // Optional: when no name is given and multiple items match, pick a default
+  // (e.g. the "production" environment) instead of erroring. Returns an item
+  // from the collection, or null/undefined to fall through to the error.
+  fallbackResolver,
 }) => {
   const collection = Array.isArray(items) ? items : [];
 
@@ -46,6 +50,14 @@ export const resolveSingleNamedResource = ({
         id: getId(collection[0]),
         label: getLabel(collection[0]),
       };
+    }
+
+    const fallback =
+      typeof fallbackResolver === "function"
+        ? fallbackResolver(collection)
+        : null;
+    if (fallback) {
+      return { id: getId(fallback), label: getLabel(fallback) };
     }
 
     throw new ErrorClass(

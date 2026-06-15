@@ -1,7 +1,7 @@
 {
   "provider": "cloudflare",
-  "ranAt": "2026-06-15T13:32:21.402Z",
-  "inputHash": "8310a4175206bedda812226daac7b27bef616965d8125e26470e8f19f5fd32f3",
+  "ranAt": "2026-06-15T13:51:01.997Z",
+  "inputHash": "2182a1f3a637721fcee955d6d22139f381007499aa0919f6fdc76e38c22701fe",
   "ok": true,
   "operations": [
     "getCloudflareAuthStatus",

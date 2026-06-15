@@ -1,6 +1,6 @@
 {
   "name": "@vucinatim/agentic-devtools",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": false,
   "description": "MCP-first devtools for AI agents.",
   "type": "module",
