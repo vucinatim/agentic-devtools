@@ -22,10 +22,33 @@ export const mapAxiomError = (err) => {
   const details = err.details ?? {};
   const status = typeof details.status === "number" ? details.status : null;
   const payload = details.payload ?? null;
+  const message = err.message ?? "Axiom request failed";
+
+  // Dataset-not-found surfaces as a 400/422 APL error ("unable to find dataset
+  // 'X'") or a 404 — and the generic "check your APL syntax" advice misleads.
+  // Catch it explicitly and point at the real fix (most common cause: a stale
+  // default dataset saved on the token, or AXIOM_DATASET unset for the project).
+  if (
+    /unable to find dataset|dataset .*not found|could not find dataset/i.test(
+      message,
+    )
+  ) {
+    return {
+      ...defaultsForCode(ERROR_CODES.NOT_FOUND),
+      message,
+      why: "The target Axiom dataset doesn't exist — often a stale default dataset saved on the token, or AXIOM_DATASET not set for this project.",
+      remediation: {
+        kind: REMEDIATION_KINDS.CODE_CHANGE,
+        instructions:
+          "Pass `--dataset <name>` (or set AXIOM_DATASET). List valid datasets with `agentic-devtools axiom list-datasets`.",
+      },
+      retriable: false,
+      provider_error: { status, payload },
+    };
+  }
 
   // Pre-flight (no HTTP attempt — bad config / bad args).
   if (status === null) {
-    const message = err.message ?? "Axiom request failed";
     if (/missing.*token/i.test(message) || /run.*connect/i.test(message)) {
       return {
         code: ERROR_CODES.AUTH_EXPIRED,
