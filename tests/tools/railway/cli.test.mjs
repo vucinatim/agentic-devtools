@@ -228,3 +228,40 @@ test("Railway CLI updates service domains by domain lookup", async () => {
     },
   ]);
 });
+
+test("Railway CLI lists variables with resolved selectors", async () => {
+  const calls = [];
+  const client = {
+    resolveEnvironmentSelector: async (input) => {
+      calls.push(["resolveEnvironmentSelector", input]);
+      return { environmentId: "env-id", projectId: "project-id" };
+    },
+    resolveServiceSelector: async (input) => {
+      calls.push(["resolveServiceSelector", input]);
+      return { serviceId: "service-id" };
+    },
+    listVariables: async (input) => {
+      calls.push(["listVariables", input]);
+      return { variables: { FOO: "bar" }, count: 1, scope: "service" };
+    },
+  };
+
+  const result = await runRailwayCli(
+    [
+      "list-variables",
+      "--project-name",
+      "magnify",
+      "--environment-name",
+      "production",
+      "--service-name",
+      "api",
+    ],
+    { client },
+  );
+
+  assert.equal(result.count, 1);
+  assert.deepEqual(calls.at(-1), [
+    "listVariables",
+    { projectId: "project-id", environmentId: "env-id", serviceId: "service-id" },
+  ]);
+});
