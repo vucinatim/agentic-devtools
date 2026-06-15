@@ -1,7 +1,7 @@
 {
   "provider": "axiom",
-  "ranAt": "2026-05-25T19:12:01.030Z",
-  "inputHash": "3f49caf4d080c85a8797782e1eb3a15c4cbf604a5abd33fea524d845c8a810ef",
+  "ranAt": "2026-06-15T10:32:24.261Z",
+  "inputHash": "29aeac8d8211e2ca69f374df54d0538c3b380459bd408e1dbf8b1c4997ce8bb4",
   "ok": true,
   "operations": [
     "resolveAxiomAuthConfig",
@@ -11,7 +11,7 @@
     "addChart",
     "deleteDashboard"
   ],
-  "datasetCount": 23,
+  "datasetCount": 24,
   "queriedDataset": null,
   "querySkipReason": "line: 1, col: 1: unable to find dataset 'classology'\n\n['classology'] | limit 1\n^^^",
   "destructive": true,
