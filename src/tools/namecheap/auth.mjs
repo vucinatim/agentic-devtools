@@ -230,10 +230,9 @@ const renderPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype ht
             : ""
         }
         <ol>
-          <li>Open <a href="https://www.namecheap.com/support/knowledgebase/article.aspx/763/63/what-is-sandbox/" target="_blank" rel="noreferrer">Sandbox setup</a> if you want safe testing first.</li>
-          <li>Open <a href="https://ap.www.namecheap.com/settings/tools/apiaccess/" target="_blank" rel="noreferrer">production API access</a> or the Sandbox account’s API access page.</li>
-          <li>Enable API access and whitelist the same IPv4 address you enter as <code>Client IP</code>.</li>
-          <li>Copy your API user, API key, and username into this form.</li>
+          <li>Open <a href="https://ap.www.namecheap.com/settings/tools/apiaccess/" target="_blank" rel="noreferrer">Namecheap API Access</a>, toggle it <strong>ON</strong>, and whitelist the IPv4 above (it must match <code>Client IP</code> below).</li>
+          <li>Copy your <strong>API Key</strong>. For <strong>API User</strong> and <strong>Username</strong>, use your Namecheap account username — they're the same unless you're a reseller.</li>
+          <li>Leave <strong>Use Sandbox account</strong> unchecked for your real account. (Sandbox is a separate test environment with its own login + key — only for scripting against fake domains. <a href="https://www.namecheap.com/support/knowledgebase/article.aspx/763/63/what-is-sandbox/" target="_blank" rel="noreferrer">What's Sandbox?</a>)</li>
         </ol>
         ${
           message
@@ -244,11 +243,11 @@ const renderPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype ht
           <input type="hidden" name="csrfToken" value="${escapeHtml(csrfToken)}" />
           <div class="row">
             <label>
-              API User
+              API User <span style="font-weight:400; opacity:0.6;">— your Namecheap username</span>
               <input name="apiUser" type="text" value="${escapeHtml(defaults.apiUser ?? "")}" required />
             </label>
             <label>
-              Username
+              Username <span style="font-weight:400; opacity:0.6;">— same as API User</span>
               <input name="username" type="text" value="${escapeHtml(defaults.username ?? "")}" required />
             </label>
           </div>
@@ -278,7 +277,7 @@ const renderPage = ({ csrfToken, message = "", defaults = {} }) => `<!doctype ht
 </html>`;
 
 export const runBrowserAuthFlow = async ({
-  defaultSandbox = true,
+  defaultSandbox = false,
   fetchImpl = globalThis.fetch,
   validateConnection = true,
   timeoutMs = DEFAULT_TIMEOUT_MS,
