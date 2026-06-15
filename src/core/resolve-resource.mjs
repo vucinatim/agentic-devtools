@@ -60,8 +60,14 @@ export const resolveSingleNamedResource = ({
       return { id: getId(fallback), label: getLabel(fallback) };
     }
 
+    // Name the exact selector flags when the label is a single word
+    // (e.g. account → `--account-id` / `--account-name`); fall back to prose
+    // for multi-word labels.
+    const selectorHint = resourceLabel.includes(" ")
+      ? `an explicit ${resourceLabel} id or name`
+      : `\`--${resourceLabel}-id\` or \`--${resourceLabel}-name\``;
     throw new ErrorClass(
-      `${operation} matched multiple ${resourceLabel}s — pass an explicit ${resourceLabel} id or name to choose one. Accessible: ${collection
+      `${operation} matched multiple ${resourceLabel}s — pass ${selectorHint} to choose one. Accessible: ${collection
         .slice(0, 10)
         .map((item) => getLabel(item))
         .join(", ")}.`,
